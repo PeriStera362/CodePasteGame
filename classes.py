@@ -106,6 +106,9 @@ class Pigeon:
         self.leg_phase = 0
         self.satiety = 50
         self.feeding_effects = []
+        # Added reference to game for accessing dander and droppings
+        self.dander = []
+        self.droppings = []
 
     def update(self):
         now = pygame.time.get_ticks()
@@ -115,6 +118,7 @@ class Pigeon:
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
 
+        # Update core stats
         self.hunger = min(100, self.hunger + 0.1)
         self.energy = max(0, self.energy - 0.05)
         self.cleanliness = max(0, self.cleanliness - 0.1)
@@ -162,10 +166,12 @@ class Pigeon:
         self.action = random.choice(actions)
         if self.action == "drop":
             self.action_message = "Oops, a dropping!"
+            self.add_dropping()
             self.dx = random.choice([-1, 1]) * random.randint(1, 3)
             self.dy = random.choice([-1, 1]) * random.randint(1, 2)
         elif self.action == "frolic":
             self.action_message = "Fluffing feathers!"
+            self.add_dander()
             self.dx = random.choice([-1, 1]) * random.randint(2, 4)
             self.dy = random.choice([-1, 1]) * random.randint(1, 3)
         elif self.action == "coo":
@@ -184,6 +190,19 @@ class Pigeon:
             self.action_message = "Hop hop!"
             self.dx = random.choice([-1, 1]) * 2
             self.dy = -4
+
+    def add_dander(self):
+        """Add a burst of dander particles near the pigeon's current position."""
+        for _ in range(10):
+            x = self.x + random.randint(-30, 30)
+            y = self.y + random.randint(-30, 30)
+            self.dander.append((x, y))
+
+    def add_dropping(self):
+        """Add a dropping particle near the pigeon's current position."""
+        x = self.x + random.randint(-20, 20)
+        y = self.y + random.randint(20, 40)
+        self.droppings.append((x, y))
 
     def eat_seed(self, seed_pos):
         self.satiety = min(self.satiety + 5, 100)

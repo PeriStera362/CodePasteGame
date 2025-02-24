@@ -22,10 +22,6 @@ class Game:
         # Game objects
         self.pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
         self.messages = []
-
-        # Game state
-        self.dander = []
-        self.droppings = []
         self.sparkles = []
         self.seeds = []
         self.cleaning_score = 0
@@ -106,9 +102,9 @@ class Game:
     def handle_cloth_cleaning(self, pos):
         """Handle cloth cleaning interaction."""
         cloth_rect = pygame.Rect(pos[0] - 20, pos[1] - 20, 40, 40)
-        original_count = len(self.droppings)
-        self.droppings = [drop for drop in self.droppings if not cloth_rect.collidepoint(drop)]
-        cleaned_count = original_count - len(self.droppings)
+        original_count = len(self.pigeon.droppings)
+        self.pigeon.droppings = [drop for drop in self.pigeon.droppings if not cloth_rect.collidepoint(drop)]
+        cleaned_count = original_count - len(self.pigeon.droppings)
         if cleaned_count > 0:
             self.update_cleaning_score(cleaned_count * 10)
             self.sparkles.append(Sparkle(pos[0], pos[1]))
@@ -116,9 +112,9 @@ class Game:
     def handle_vacuum_cleaning(self, pos):
         """Handle vacuum cleaning interaction."""
         vacuum_radius = 25
-        original_count = len(self.dander)
-        self.dander = [d for d in self.dander if (d[0] - pos[0])**2 + (d[1] - pos[1])**2 > vacuum_radius**2]
-        cleaned_count = original_count - len(self.dander)
+        original_count = len(self.pigeon.dander)
+        self.pigeon.dander = [d for d in self.pigeon.dander if (d[0] - pos[0])**2 + (d[1] - pos[1])**2 > vacuum_radius**2]
+        cleaned_count = original_count - len(self.pigeon.dander)
         if cleaned_count > 0:
             self.update_cleaning_score(cleaned_count * 5)
             self.sparkles.append(Sparkle(pos[0], pos[1]))
@@ -166,9 +162,9 @@ class Game:
 
     def draw_game_objects(self):
         """Draw all game objects."""
-        for pos in self.dander:
+        for pos in self.pigeon.dander:
             pygame.draw.circle(self.screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
-        for pos in self.droppings:
+        for pos in self.pigeon.droppings:
             pygame.draw.circle(self.screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
         for spark in self.sparkles:
             spark.draw(self.screen)
@@ -198,7 +194,7 @@ class Game:
         self.screen.blit(combo_text, (WIDTH - 200, 60))
 
         # Draw cleanliness bar
-        total_mess = len(self.dander) + len(self.droppings)
+        total_mess = len(self.pigeon.dander) + len(self.pigeon.droppings)
         if total_mess > 0:
             cleanliness = 1 - (total_mess / 50)
             draw_progress_bar(self.screen, 50, 20, 200, 20, cleanliness, (0, 255, 0))
