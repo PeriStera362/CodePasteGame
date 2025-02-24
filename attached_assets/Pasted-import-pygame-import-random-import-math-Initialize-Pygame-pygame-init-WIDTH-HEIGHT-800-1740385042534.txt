@@ -1,0 +1,322 @@
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Pet Pigeon Simulator")
+clock = pygame.time.Clock()
+
+# Colors & Constants
+FLOOR_COLOR = (210, 180, 140)    # Tan floor color
+WALL_COLOR = (169, 169, 169)     # Grey walls
+WALL_THICKNESS = 20              # Wall thickness
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+DANDER_COLOR = (240, 230, 140)    # Light dander
+DROPPING_COLOR = (139, 69, 19)     # Brown droppings
+
+# Feeding constants
+FEEDING_SPEED = 3                # Speed when moving to feed target
+FEED_THRESHOLD = 10              # Distance at which pigeon is considered to have arrived
+COOLDOWN_TIME = 120000           # 2 minutes cooldown in milliseconds
+FEED_LOG_WINDOW = 120000         # 2 minutes window for seed-eating count
+
+# Font
+font = pygame.font.SysFont(None, 24)
+
+# UI Buttons
+vacuum_button = pygame.Rect(50, 500, 100, 50)
+cloth_button = pygame.Rect(200, 500, 100, 50)
+feed_button = pygame.Rect(350, 500, 100, 50)
+
+# Global Lists & Mode Flags
+dander = []
+droppings = []
+seeds_list = []          # List of seed objects (dict with x,y, target_y, fall_speed, falling)
+seeds_eaten_log = []     # Timestamps for each seed eaten
+
+cloth_mode = False       # For cleaning droppings (existing mode)
+feed_mode = False        # New: true when the feed button has been clicked and waiting for drop location
+feed_target = None       # (x, y) where seeds have been dropped
+
+pigeon_cooldown = False
+cooldown_start_time = None
+
+def draw_room(surface):
+    """Draw the top-down room: floor with surrounding walls."""
+    surface.fill(FLOOR_COLOR)
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WIDTH, WALL_THICKNESS))  # Top
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WALL_THICKNESS, HEIGHT))  # Left
+    pygame.draw.rect(surface, WALL_COLOR, (0, HEIGHT - WALL_THICKNESS, WIDTH, WALL_THICKNESS))  # Bottom
+    pygame.draw.rect(surface, WALL_COLOR, (WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, HEIGHT))  # Right
+
+def add_dander(pigeon_x, pigeon_y):
+    """Add dander particles near the pigeon."""
+    for _ in range(10):
+        x = pigeon_x + random.randint(-30, 30)
+        y = pigeon_y + random.randint(-30, 30)
+        dander.append((x, y))
+
+def add_dropping(pigeon_x, pigeon_y):
+    """Add a dropping near the pigeon."""
+    x = pigeon_x + random.randint(-20, 20)
+    y = pigeon_y + random.randint(20, 40)
+    droppings.append((x, y))
+
+def update_seeds():
+    """Update seed falling animation: seeds fall until they reach their target_y."""
+    global seeds_list
+    for seed in seeds_list:
+        if seed['falling']:
+            seed['y'] += seed['fall_speed']
+            if seed['y'] >= seed['target_y']:
+                seed['y'] = seed['target_y']
+                seed['falling'] = False
+
+def draw_seeds(surface):
+    """Draw each seed as a small circle."""
+    for seed in seeds_list:
+        pygame.draw.circle(surface, (218, 165, 32), (int(seed['x']), int(seed['y'])), 3)  # goldenrod color
+
+def draw_feed_cursor(surface, pos):
+    """Draws a handful of seeds as the feed cursor at the given position."""
+    # Draw several small circles around the cursor to simulate seeds
+    offsets = [(-10, -10), (0, -10), (10, -10), (-10, 0), (0, 0), (10, 0)]
+    for dx, dy in offsets:
+        pygame.draw.circle(surface, (218, 165, 32), (pos[0] + dx, pos[1] + dy), 3)
+
+class Pigeon:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = 2    # normal horizontal speed
+        self.vy = 0
+        self.action = "idle"
+        self.action_message = "Just chilling..."
+        self.last_action_time = pygame.time.get_ticks()
+        self.leg_phase = 0   # for leg animation
+        self.state = "normal"  # "normal", "feeding", or "cooldown"
+
+    def move_normal(self):
+        """Normal random walking (horizontal) with bouncing off walls."""
+        self.x += self.vx
+        # Bounce off left/right boundaries (taking wall thickness into account)
+        if self.x - 50 <= WALL_THICKNESS or self.x + 50 >= WIDTH - WALL_THICKNESS:
+            self.vx = -self.vx
+
+    def move_to_feed(self, target_x, target_y):
+        """Move toward the feed target using FEEDING_SPEED."""
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = math.hypot(dx, dy)
+        if distance > FEED_THRESHOLD:
+            self.vx = FEEDING_SPEED * (dx / distance)
+            self.vy = FEEDING_SPEED * (dy / distance)
+            self.x += self.vx
+            self.y += self.vy
+        else:
+            # Arrived at target; eat seeds.
+            self.eat_seeds()
+
+    def eat_seeds(self):
+        """Simulate eating seeds: add to eaten log and clear feed target/seeds."""
+        global seeds_list, feed_target, seeds_eaten_log
+        seeds_eaten = len(seeds_list)
+        now = pygame.time.get_ticks()
+        # Record a timestamp for each seed eaten
+        for _ in range(seeds_eaten):
+            seeds_eaten_log.append(now)
+        seeds_list = []
+        feed_target = None
+        self.action_message = f"Ate {seeds_eaten} seeds!"
+        print(self.action_message)
+
+    def choose_action(self):
+        """For normal state, choose a random action (if not feeding)."""
+        actions = ["drop", "frolic", "coo", "loaf", "eat"]
+        self.action = random.choice(actions)
+        if self.action == "drop":
+            self.action_message = "Oops, a dropping!"
+            add_dropping(self.x, self.y)
+            self.vx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "frolic":
+            self.action_message = "Fluffing feathers!"
+            add_dander(self.x, self.y)
+            self.vx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "coo":
+            self.action_message = "Cooing softly..."
+            self.vx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "loaf":
+            self.action_message = "Just loafing around."
+            self.vx = 0
+        elif self.action == "eat":
+            self.action_message = "Munching on seeds."
+            self.vx = random.choice([-1, 1]) * random.randint(1, 4)
+        self.vy = 0
+        print("Pigeon action:", self.action)
+
+    def update(self):
+        now = pygame.time.get_ticks()
+        # Advance leg animation if moving
+        if self.vx != 0 or self.vy != 0:
+            self.leg_phase += 0.2
+
+        # If there is a feed target and pigeon is not in cooldown, override to feeding mode.
+        if feed_target is not None and not pigeon_cooldown:
+            self.state = "feeding"
+            self.action_message = "Homing in on seeds!"
+            self.move_to_feed(feed_target[0], feed_target[1])
+        elif pigeon_cooldown:
+            self.state = "cooldown"
+            self.vx, self.vy = 0, 0
+            self.action_message = "I'm too full... (cooldown)"
+        else:
+            # Normal behavior: choose new action every 3 seconds.
+            self.state = "normal"
+            if now - self.last_action_time > 3000:
+                self.choose_action()
+                self.last_action_time = now
+            self.move_normal()
+
+    def draw(self, surface):
+        """Draw the pigeon (body, face, and legs if moving)."""
+        # Draw body
+        pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
+        # Draw eyes
+        pygame.draw.circle(surface, BLACK, (int(self.x) - 15, int(self.y) - 10), 5)
+        pygame.draw.circle(surface, BLACK, (int(self.x) + 15, int(self.y) - 10), 5)
+        # Draw beak
+        pygame.draw.polygon(surface, (255, 200, 0),
+                            [(int(self.x), int(self.y)),
+                             (int(self.x) + 30, int(self.y) + 10),
+                             (int(self.x), int(self.y) + 20)])
+        # Draw legs if moving (only in normal or feeding modes)
+        if (self.vx != 0 or self.vy != 0) and self.state != "loaf":
+            offset = int(10 * math.sin(self.leg_phase))
+            left_start = (int(self.x) - 15, int(self.y) + 50)
+            left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, left_start, left_end, 3)
+            right_start = (int(self.x) + 15, int(self.y) + 50)
+            right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, right_start, right_end, 3)
+        # Draw action message
+        text = font.render(self.action_message, True, BLACK)
+        surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
+
+# Create pigeon instance
+pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
+
+# Main Game Loop
+running = True
+while running:
+    clock.tick(60)
+    now = pygame.time.get_ticks()
+    # Global: update cooldown status by filtering seeds_eaten_log for last 2 minutes
+    seeds_eaten_log = [t for t in seeds_eaten_log if now - t <= FEED_LOG_WINDOW]
+    if len(seeds_eaten_log) >= 30 and not pigeon_cooldown:
+        pigeon_cooldown = True
+        cooldown_start_time = now
+        print("Pigeon is full! Entering cooldown.")
+    if pigeon_cooldown and now - cooldown_start_time >= COOLDOWN_TIME:
+        pigeon_cooldown = False
+        seeds_eaten_log = []  # reset the log
+        print("Cooldown over. Ready for more seeds.")
+
+    # In feed mode, hide cursor and show feed cursor
+    if feed_mode:
+        pygame.mouse.set_visible(False)
+        mouse_pos = pygame.mouse.get_pos()
+    else:
+        pygame.mouse.set_visible(True)
+    
+    # Update seed falling animation
+    update_seeds()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            pos = pygame.mouse.get_pos()
+            # Check UI buttons first
+            if vacuum_button.collidepoint(pos):
+                dander.clear()
+                print("Dander vacuumed!")
+            elif cloth_button.collidepoint(pos):
+                cloth_mode = not cloth_mode
+                print("Cloth mode:", cloth_mode)
+            elif feed_button.collidepoint(pos):
+                # Enter feed mode (turns cursor into seed handful)
+                feed_mode = True
+                print("Feed mode activated.")
+            # If in feed mode and click not on UI, drop seeds.
+            elif feed_mode:
+                feed_target = pos
+                num_seeds = random.randint(8, 12)
+                seeds_list = []
+                for _ in range(num_seeds):
+                    seed = {
+                        "x": pos[0] + random.randint(-10, 10),
+                        "y": pos[1] - random.randint(20, 40),  # start above target
+                        "target_y": pos[1] + random.randint(-5, 5),  # allow small variation on floor
+                        "fall_speed": random.randint(1, 3),
+                        "falling": True
+                    }
+                    seeds_list.append(seed)
+                feed_mode = False  # Exit feed mode after dropping seeds
+                print(f"Dropped {num_seeds} seeds at {pos}")
+            # Normal click (when not in feed mode) to pet pigeon if not using cloth mode.
+            elif not cloth_mode:
+                dx = pos[0] - pigeon.x
+                dy = pos[1] - pigeon.y
+                if dx * dx + dy * dy <= 50 * 50:
+                    pigeon.action_message = "Coo! Thanks for the pet!"
+                    print("Petted the pigeon!")
+    
+    # Handle cloth mode cleaning (existing mechanic)
+    if cloth_mode:
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        if cleaning_active:
+            cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
+            droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
+    
+    # Update pigeon state
+    pigeon.update()
+
+    # Draw everything
+    draw_room(screen)
+    for pos in dander:
+        pygame.draw.circle(screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
+    for pos in droppings:
+        pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
+    draw_seeds(screen)
+    pigeon.draw(screen)
+    
+    # Draw UI buttons and labels
+    pygame.draw.rect(screen, GRAY, vacuum_button)
+    pygame.draw.rect(screen, GRAY, cloth_button)
+    pygame.draw.rect(screen, GRAY, feed_button)
+    vacuum_text = font.render("Vacuum", True, BLACK)
+    cloth_text = font.render("Cloth", True, BLACK)
+    feed_text = font.render("Feed", True, BLACK)
+    screen.blit(vacuum_text, (vacuum_button.x + 10, vacuum_button.y + 15))
+    screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
+    screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
+    
+    # Draw custom cursors if in special modes
+    if cloth_mode:
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        # (Cloth cursor already handled in previous version)
+        # … (reuse draw_cloth function if desired)
+    if feed_mode:
+        # Draw seed handful as cursor when in feed mode
+        draw_feed_cursor(screen, pygame.mouse.get_pos())
+    
+    pygame.display.flip()
+
+pygame.quit()
