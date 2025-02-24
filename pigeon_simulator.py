@@ -10,13 +10,15 @@ pygame.display.set_caption("Pet Pigeon Simulator")
 clock = pygame.time.Clock()
 
 # Define Colors
-WHITE = (255, 255, 255)
+FLOOR_COLOR = (210, 180, 140)   # Tan floor color
+WALL_COLOR = (169, 169, 169)    # Dark grey walls
+WALL_THICKNESS = 20             # Thickness for walls
 BLACK = (0, 0, 0)
 GRAY = (200, 200, 200)
-DANDER_COLOR = (240, 230, 140)   # light yellowish dander
-DROPPING_COLOR = (139, 69, 19)    # brown droppings
+DANDER_COLOR = (240, 230, 140)   # Light yellowish dander
+DROPPING_COLOR = (139, 69, 19)    # Brown droppings
 
-# Define Fonts
+# Define Font
 font = pygame.font.SysFont(None, 24)
 
 # Define UI Button Rectangles
@@ -27,6 +29,19 @@ feed_button = pygame.Rect(350, 500, 100, 50)
 # Global lists to store dander and droppings positions
 dander = []
 droppings = []
+
+def draw_room(surface):
+    """Draws a top-down view of a room with a floor and surrounding walls."""
+    # Draw floor
+    surface.fill(FLOOR_COLOR)
+    # Draw top wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WIDTH, WALL_THICKNESS))
+    # Draw left wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WALL_THICKNESS, HEIGHT))
+    # Draw bottom wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, HEIGHT - WALL_THICKNESS, WIDTH, WALL_THICKNESS))
+    # Draw right wall
+    pygame.draw.rect(surface, WALL_COLOR, (WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, HEIGHT))
 
 def add_dander(pigeon_x, pigeon_y):
     """Add a burst of dander particles near the pigeon's current position."""
@@ -53,37 +68,32 @@ class Pigeon:
         self.leg_phase = 0  # for leg animation
 
     def move(self):
-        """Update the pigeon's position and bounce off screen edges."""
+        """Update the pigeon's position and bounce off walls (taking wall thickness into account)."""
         self.x += self.dx
         self.y += self.dy
-        # Bounce off edges (assuming pigeon radius of 50)
-        if self.x - 50 <= 0 or self.x + 50 >= WIDTH:
+        # Bounce off walls (accounting for wall thickness)
+        if self.x - 50 <= WALL_THICKNESS or self.x + 50 >= WIDTH - WALL_THICKNESS:
             self.dx = -self.dx
-        if self.y - 50 <= 0 or self.y + 50 >= HEIGHT - 100:  # Keep above buttons
+        if self.y - 50 <= WALL_THICKNESS or self.y + 50 >= HEIGHT - 100:  # Keep above buttons
             self.dy = -self.dy
 
     def update(self):
-        """Update movement and actions. Every few seconds, choose a new random action."""
         now = pygame.time.get_ticks()
-        # If pigeon is moving, update leg animation
         if self.dx != 0 or self.dy != 0:
-            self.leg_phase += 0.2  # Adjust for desired swing speed
-        # Choose new action every 3 seconds
+            self.leg_phase += 0.2  # advance leg animation
         if now - self.last_action_time > 3000:
             self.choose_action()
             self.last_action_time = now
-        # Only move if not loafing (loafing = stopped)
         if self.dx != 0 or self.dy != 0:
             self.move()
 
     def choose_action(self):
-        """Randomly choose an action and trigger side effects relative to the pigeon's current position."""
+        """Randomly choose an action and adjust movement accordingly."""
         actions = ["drop", "frolic", "coo", "loaf", "eat", "hop"]
         self.action = random.choice(actions)
         if self.action == "drop":
             self.action_message = "Oops, a dropping!"
             add_dropping(self.x, self.y)
-            # Moving action: random speed and direction
             self.dx = random.choice([-1, 1]) * random.randint(1, 3)
             self.dy = random.choice([-1, 1]) * random.randint(1, 2)
         elif self.action == "frolic":
@@ -97,11 +107,11 @@ class Pigeon:
             self.dy = 0  # Stays at same height while cooing
         elif self.action == "loaf":
             self.action_message = "Just loafing around."
-            self.dx = 0  # stop moving
+            self.dx = 0  # stops moving
             self.dy = 0
         elif self.action == "eat":
             self.action_message = "Munching on seeds."
-            self.dx = random.choice([-1, 1])  # Slow movement while eating
+            self.dx = random.choice([-1, 1])  # slow movement while eating
             self.dy = 0
         elif self.action == "hop":
             self.action_message = "Hop hop!"
@@ -110,45 +120,42 @@ class Pigeon:
         print("Pigeon action:", self.action)
 
     def draw(self, surface):
-        """Draw the pigeon, its legs (if moving), and its current action message."""
-        # Draw pigeon body (a simple circle)
+        """Draw the pigeon with its body, face, and animated legs if moving."""
+        # Draw pigeon body
         pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
         # Draw eyes
         pygame.draw.circle(surface, BLACK, (int(self.x) - 15, int(self.y) - 10), 5)
         pygame.draw.circle(surface, BLACK, (int(self.x) + 15, int(self.y) - 10), 5)
-        # Draw beak (a triangle)
+        # Draw beak
         pygame.draw.polygon(surface, (255, 200, 0),
                             [(int(self.x), int(self.y)),
                              (int(self.x) + 30, int(self.y) + 10),
                              (int(self.x), int(self.y) + 20)])
-        # Draw legs if pigeon is moving (dx != 0)
+        # Draw legs if moving
         if self.dx != 0 or self.dy != 0:
-            # Calculate leg swing offset using sine wave for simple animation
             offset = int(10 * math.sin(self.leg_phase))
-            # Left leg: starting at bottom left of circle
+            # Left leg
             left_start = (int(self.x) - 15, int(self.y) + 50)
             left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
             pygame.draw.line(surface, BLACK, left_start, left_end, 3)
-            # Right leg: starting at bottom right of circle; opposite swing phase
+            # Right leg (swinging oppositely)
             right_start = (int(self.x) + 15, int(self.y) + 50)
             right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
             pygame.draw.line(surface, BLACK, right_start, right_end, 3)
-        # Display the action message above the pigeon
+        # Display action message above the pigeon
         text = font.render(self.action_message, True, BLACK)
         surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
 
-# Create a pigeon instance centered on the screen
+# Create a pigeon instance centered in the room
 pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
 
 # Main Game Loop
 running = True
 while running:
-    clock.tick(60)  # run at 60 frames per second
+    clock.tick(60)  # 60 FPS
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-        # Handle mouse clicks for UI buttons and petting the pigeon
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = pygame.mouse.get_pos()
             if vacuum_button.collidepoint(pos):
@@ -161,35 +168,25 @@ while running:
                 pigeon.action_message = "Yum, seeds!"
                 print("Fed the pigeon!")
             else:
-                # Check if the pigeon was clicked (within its circular area)
+                # Check if the pigeon was clicked
                 dx = pos[0] - pigeon.x
                 dy = pos[1] - pigeon.y
                 if dx * dx + dy * dy <= 50 * 50:
                     pigeon.action_message = "Coo! Thanks for the pet!"
                     print("Petted the pigeon!")
 
-    # Update game state
     pigeon.update()
-
-    # Clear the screen
-    screen.fill(WHITE)
-
-    # Draw dander particles
+    draw_room(screen)  # Draw the room background
+    # Draw dander and droppings relative to their positions
     for pos in dander:
         pygame.draw.circle(screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
-
-    # Draw droppings
     for pos in droppings:
         pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
-
-    # Draw the pigeon
     pigeon.draw(screen)
-
     # Draw UI Buttons
     pygame.draw.rect(screen, GRAY, vacuum_button)
     pygame.draw.rect(screen, GRAY, cloth_button)
     pygame.draw.rect(screen, GRAY, feed_button)
-    # Render button labels
     vacuum_text = font.render("Vacuum", True, BLACK)
     cloth_text = font.render("Cloth", True, BLACK)
     feed_text = font.render("Feed", True, BLACK)
@@ -197,7 +194,5 @@ while running:
     screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
     screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
 
-    # Update the display
     pygame.display.flip()
-
 pygame.quit()
