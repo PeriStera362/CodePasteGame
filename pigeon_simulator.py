@@ -27,44 +27,55 @@ feed_button = pygame.Rect(350, 500, 100, 50)
 dander = []
 droppings = []
 
-def add_dander():
-    """Add a burst of dander particles at random positions."""
+def add_dander(pigeon_x, pigeon_y):
+    """Add a burst of dander particles near the pigeon's current position."""
     for _ in range(10):  # add 10 particles
-        x = random.randint(0, WIDTH)
-        y = random.randint(0, HEIGHT)
+        x = pigeon_x + random.randint(-30, 30)
+        y = pigeon_y + random.randint(-30, 30)
         dander.append((x, y))
 
-def add_dropping():
-    """Add a dropping particle near the lower part of the screen."""
-    x = random.randint(0, WIDTH)
-    y = random.randint(400, HEIGHT)
+def add_dropping(pigeon_x, pigeon_y):
+    """Add a dropping particle near the pigeon's current position."""
+    x = pigeon_x + random.randint(-20, 20)
+    y = pigeon_y + random.randint(20, 40)
     droppings.append((x, y))
 
 class Pigeon:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+        self.dx = 2  # horizontal walking speed
         self.action = "idle"
         self.action_message = "Just chilling..."
         self.last_action_time = pygame.time.get_ticks()
 
+    def move(self):
+        """Update the pigeon's position (walking) and bounce off screen edges."""
+        self.x += self.dx
+        # Bounce off left and right edges (assuming pigeon radius of 50)
+        if self.x - 50 <= 0 or self.x + 50 >= WIDTH:
+            self.dx = -self.dx
+
     def update(self):
-        """Every few seconds, choose a new random action."""
+        """Update movement and actions. Every few seconds, choose a new random action."""
         now = pygame.time.get_ticks()
-        if now - self.last_action_time > 3000:  # every 3 seconds
+        # Update movement continuously
+        self.move()
+        # Choose new action every 3 seconds
+        if now - self.last_action_time > 3000:
             self.choose_action()
             self.last_action_time = now
 
     def choose_action(self):
-        """Randomly choose one of the actions and trigger side effects."""
+        """Randomly choose an action and trigger side effects relative to the pigeon's current position."""
         actions = ["drop", "frolic", "coo", "loaf", "eat"]
         self.action = random.choice(actions)
         if self.action == "drop":
             self.action_message = "Oops, a dropping!"
-            add_dropping()
+            add_dropping(self.x, self.y)
         elif self.action == "frolic":
             self.action_message = "Fluffing feathers!"
-            add_dander()
+            add_dander(self.x, self.y)
         elif self.action == "coo":
             self.action_message = "Cooing softly..."
         elif self.action == "loaf":
@@ -76,16 +87,18 @@ class Pigeon:
     def draw(self, surface):
         """Draw the pigeon and its current action message."""
         # Draw pigeon body (a simple circle)
-        pygame.draw.circle(surface, (150, 150, 150), (self.x, self.y), 50)
+        pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
         # Draw eyes
-        pygame.draw.circle(surface, BLACK, (self.x - 15, self.y - 10), 5)
-        pygame.draw.circle(surface, BLACK, (self.x + 15, self.y - 10), 5)
+        pygame.draw.circle(surface, BLACK, (int(self.x) - 15, int(self.y) - 10), 5)
+        pygame.draw.circle(surface, BLACK, (int(self.x) + 15, int(self.y) - 10), 5)
         # Draw beak (a triangle)
         pygame.draw.polygon(surface, (255, 200, 0),
-                            [(self.x, self.y), (self.x + 30, self.y + 10), (self.x, self.y + 20)])
+                            [(int(self.x), int(self.y)),
+                             (int(self.x) + 30, int(self.y) + 10),
+                             (int(self.x), int(self.y) + 20)])
         # Display the action message above the pigeon
         text = font.render(self.action_message, True, BLACK)
-        surface.blit(text, (self.x - text.get_width() // 2, self.y - 70))
+        surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
 
 # Create a pigeon instance centered on the screen
 pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
@@ -126,11 +139,11 @@ while running:
 
     # Draw dander particles
     for pos in dander:
-        pygame.draw.circle(screen, DANDER_COLOR, pos, 3)
+        pygame.draw.circle(screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
 
     # Draw droppings
     for pos in droppings:
-        pygame.draw.circle(screen, DROPPING_COLOR, pos, 5)
+        pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
 
     # Draw the pigeon
     pigeon.draw(screen)
