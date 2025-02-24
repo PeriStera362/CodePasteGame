@@ -27,7 +27,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python pigeon_simulator.py"
+args = "python main.py"
 
 [deployment]
-run = ["sh", "-c", "python pigeon_simulator.py"]
+run = ["sh", "-c", "python main.py"]
