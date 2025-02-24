@@ -19,6 +19,8 @@ DANDER_COLOR = (240, 230, 140)   # Light yellowish dander
 DROPPING_COLOR = (139, 69, 19)    # Brown droppings
 SPARKLE_COLOR = (255, 255, 200)   # Light yellow sparkles
 VACUUM_COLOR = (100, 100, 100)    # Dark gray for vacuum head
+SEED_COLOR = (218, 165, 32)  # Golden color for seeds
+SATIETY_COLOR = (50, 205, 50)  # Green for satiety meter
 
 # Define Font
 font = pygame.font.SysFont(None, 24)
@@ -29,14 +31,18 @@ vacuum_button = pygame.Rect(50, 500, 100, 50)
 cloth_button = pygame.Rect(200, 500, 100, 50)
 feed_button = pygame.Rect(350, 500, 100, 50)
 
-# Global lists to store dander, droppings, and cleaning effects
+# Global lists to store dander, droppings, cleaning effects, and seeds
 dander = []
 droppings = []
 sparkles = []
+seeds = []
 cleaning_score = 0
 combo_multiplier = 1
 last_clean_time = 0
 COMBO_TIMEOUT = 2000  # 2 seconds to maintain combo
+MAX_SATIETY = 100
+SEED_POINTS = 5  # Satiety points per seed
+
 
 class Sparkle:
     def __init__(self, x, y):
@@ -59,10 +65,12 @@ class Sparkle:
         pygame.draw.circle(s, color, (2, 2), 2)
         surface.blit(s, (int(self.x), int(self.y)))
 
+
 def add_sparkles(x, y):
     """Add cleaning sparkle effects at the given position."""
     for _ in range(5):
         sparkles.append(Sparkle(x, y))
+
 
 def draw_progress_bar(surface, x, y, width, height, progress, color):
     """Draw a progress bar with the given parameters."""
@@ -71,6 +79,7 @@ def draw_progress_bar(surface, x, y, width, height, progress, color):
     pygame.draw.rect(surface, BLACK, border, 2)
     pygame.draw.rect(surface, color, inner)
 
+
 def update_combo():
     """Update the combo multiplier based on timing."""
     global combo_multiplier, last_clean_time
@@ -78,6 +87,7 @@ def update_combo():
     if current_time - last_clean_time > COMBO_TIMEOUT:
         combo_multiplier = 1
     return combo_multiplier
+
 
 def draw_room(surface):
     """Draws a top-down view of a room with a floor and surrounding walls."""
@@ -92,6 +102,7 @@ def draw_room(surface):
     # Draw right wall
     pygame.draw.rect(surface, WALL_COLOR, (WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, HEIGHT))
 
+
 def add_dander(pigeon_x, pigeon_y):
     """Add a burst of dander particles near the pigeon's current position."""
     for _ in range(10):  # add 10 particles
@@ -99,22 +110,90 @@ def add_dander(pigeon_x, pigeon_y):
         y = pigeon_y + random.randint(-30, 30)
         dander.append((x, y))
 
+
 def add_dropping(pigeon_x, pigeon_y):
     """Add a dropping particle near the pigeon's current position."""
     x = pigeon_x + random.randint(-20, 20)
     y = pigeon_y + random.randint(20, 40)
     droppings.append((x, y))
 
+
+class SeedParticle:
+    def __init__(self, x, y, target_y):
+        self.x = x
+        self.y = y
+        self.target_y = target_y
+        self.fall_speed = random.uniform(2, 4)
+        self.falling = True
+        self.rotation = random.uniform(0, 360)
+        self.spin_speed = random.uniform(-5, 5)
+        self.scale = random.uniform(0.8, 1.2)
+
+    def update(self):
+        if self.falling:
+            self.y += self.fall_speed
+            self.rotation += self.spin_speed
+            if self.y >= self.target_y:
+                self.y = self.target_y
+                self.falling = False
+
+    def draw(self, surface):
+        seed_size = 3 * self.scale
+        # Draw seed with rotation
+        points = [
+            (self.x + math.cos(math.radians(self.rotation)) * seed_size,
+             self.y + math.sin(math.radians(self.rotation)) * seed_size),
+            (self.x + math.cos(math.radians(self.rotation + 120)) * seed_size,
+             self.y + math.sin(math.radians(self.rotation + 120)) * seed_size),
+            (self.x + math.cos(math.radians(self.rotation + 240)) * seed_size,
+             self.y + math.sin(math.radians(self.rotation + 240)) * seed_size)
+        ]
+        pygame.draw.polygon(surface, SEED_COLOR, points)
+
+
+class FeedingEffect:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.life = 1.0
+        self.particles = []
+        for _ in range(5):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(1, 3)
+            self.particles.append({
+                'dx': math.cos(angle) * speed,
+                'dy': math.sin(angle) * speed,
+                'size': random.uniform(2, 4)
+            })
+
+    def update(self):
+        self.life -= 0.05
+        return self.life > 0
+
+    def draw(self, surface):
+        for particle in self.particles:
+            x = self.x + particle['dx'] * (1 - self.life) * 20
+            y = self.y + particle['dy'] * (1 - self.life) * 20
+            alpha = int(255 * self.life)
+            s = pygame.Surface((int(particle['size'] * 2), int(particle['size'] * 2)), pygame.SRCALPHA)
+            pygame.draw.circle(s, (*SEED_COLOR, alpha),
+                               (int(particle['size']), int(particle['size'])),
+                               int(particle['size']))
+            surface.blit(s, (int(x - particle['size']), int(y - particle['size'])))
+
+
 class Pigeon:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.dx = 2  # initial horizontal speed
-        self.dy = 0  # initial vertical speed
+        self.dx = 2
+        self.dy = 0
         self.action = "idle"
         self.action_message = "Just chilling..."
         self.last_action_time = pygame.time.get_ticks()
-        self.leg_phase = 0  # for leg animation
+        self.leg_phase = 0
+        self.satiety = 50  # Start with 50% satiety
+        self.feeding_effects = []
 
     def move(self):
         """Update the pigeon's position and bounce off walls (taking wall thickness into account)."""
@@ -128,6 +207,9 @@ class Pigeon:
 
     def update(self):
         now = pygame.time.get_ticks()
+        # Decay satiety over time
+        self.satiety = max(0, self.satiety - 0.02)
+        self.update_feeding_effects()
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2  # advance leg animation
         if now - self.last_action_time > 3000:
@@ -195,12 +277,36 @@ class Pigeon:
         text = font.render(self.action_message, True, BLACK)
         surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
 
+    def draw_satiety_meter(self, surface):
+        meter_width = 60
+        meter_height = 8
+        x = self.x - meter_width // 2
+        y = self.y - 80
+        # Draw border
+        pygame.draw.rect(surface, BLACK, (x - 1, y - 1, meter_width + 2, meter_height + 2), 1)
+        # Draw fill
+        fill_width = int(meter_width * (self.satiety / MAX_SATIETY))
+        pygame.draw.rect(surface, SATIETY_COLOR, (x, y, fill_width, meter_height))
+
+    def eat_seed(self, seed_pos):
+        self.satiety = min(self.satiety + SEED_POINTS, MAX_SATIETY)
+        self.feeding_effects.append(FeedingEffect(seed_pos[0], seed_pos[1]))
+
+    def update_feeding_effects(self):
+        self.feeding_effects = [effect for effect in self.feeding_effects if effect.update()]
+
+    def draw_feeding_effects(self, surface):
+        for effect in self.feeding_effects:
+            effect.draw(surface)
+
+
 # Create a pigeon instance centered in the room
 pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
 
 # Cleaning mode variables
 cloth_mode = False
 vacuum_mode = False  # New variable for vacuum mode
+
 
 def draw_cloth(surface, pos, cleaning):
     """Draws the cloth cursor at the given position."""
@@ -214,6 +320,7 @@ def draw_cloth(surface, pos, cleaning):
         add_sparkles(pos[0], pos[1])
     else:
         pygame.draw.rect(surface, (173, 216, 230), rect)
+
 
 def draw_vacuum(surface, pos, cleaning):
     """Draws the vacuum head cursor at the given position."""
@@ -239,6 +346,7 @@ def draw_vacuum(surface, pos, cleaning):
 
 # Main Game Loop
 running = True
+feed_mode = False
 while running:
     clock.tick(60)  # 60 FPS
 
@@ -269,7 +377,7 @@ while running:
                 # Vacuum cleaning logic
                 vacuum_radius = 25  # Size of vacuum effect
                 original_count = len(dander)
-                dander = [d for d in dander if (d[0] - mouse_pos[0])**2 + (d[1] - mouse_pos[1])**2 > vacuum_radius**2]
+                dander = [d for d in dander if (d[0] - mouse_pos[0]) ** 2 + (d[1] - mouse_pos[1]) ** 2 > vacuum_radius ** 2]
                 cleaned_count = original_count - len(dander)
                 if cleaned_count > 0:
                     current_time = pygame.time.get_ticks()
@@ -299,6 +407,7 @@ while running:
                 vacuum_mode = False
                 print("Cloth mode:", cloth_mode)
             elif feed_button.collidepoint(pos):
+                feed_mode = True
                 pigeon.action_message = "Yum, seeds!"
                 print("Fed the pigeon!")
             elif not (cloth_mode or vacuum_mode):
@@ -311,6 +420,30 @@ while running:
     # Update game state
     pigeon.update()
     sparkles = [spark for spark in sparkles if spark.update()]
+
+    #Handle seed creation on feed button click
+    if feed_mode and event.type == pygame.MOUSEBUTTONDOWN:
+        pos = pygame.mouse.get_pos()
+        num_seeds = random.randint(8, 12)
+        scatter_radius = 20
+        for _ in range(num_seeds):
+            seed_x = pos[0] + random.uniform(-scatter_radius, scatter_radius)
+            seed_y = pos[1] - random.uniform(20, 40)
+            target_y = pos[1] + random.uniform(-5, 5)
+            seeds.append(SeedParticle(seed_x, seed_y, target_y))
+        feed_mode = False
+
+    # Update and draw seeds
+    for seed in seeds[:]:
+        seed.update()
+        seed.draw(screen)
+        # Check if pigeon is close enough to eat the seed
+        if not seed.falling:
+            dx = seed.x - pigeon.x
+            dy = seed.y - pigeon.y
+            if dx * dx + dy * dy < 50 * 50:  # Within pigeon radius
+                pigeon.eat_seed((seed.x, seed.y))
+                seeds.remove(seed)
 
     # Draw everything
     draw_room(screen)
