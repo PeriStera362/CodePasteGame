@@ -18,6 +18,7 @@ GRAY = (200, 200, 200)
 DANDER_COLOR = (240, 230, 140)   # Light yellowish dander
 DROPPING_COLOR = (139, 69, 19)    # Brown droppings
 SPARKLE_COLOR = (255, 255, 200)   # Light yellow sparkles
+VACUUM_COLOR = (100, 100, 100)    # Dark gray for vacuum head
 
 # Define Font
 font = pygame.font.SysFont(None, 24)
@@ -197,8 +198,9 @@ class Pigeon:
 # Create a pigeon instance centered in the room
 pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
 
-# Cloth mode variable to track if cleaning mode is active
+# Cleaning mode variables
 cloth_mode = False
+vacuum_mode = False  # New variable for vacuum mode
 
 def draw_cloth(surface, pos, cleaning):
     """Draws the cloth cursor at the given position."""
@@ -213,29 +215,70 @@ def draw_cloth(surface, pos, cleaning):
     else:
         pygame.draw.rect(surface, (173, 216, 230), rect)
 
+def draw_vacuum(surface, pos, cleaning):
+    """Draws the vacuum head cursor at the given position."""
+    vacuum_size = 50
+    # Draw vacuum head (circle with angled line for suction)
+    if cleaning:
+        # Active vacuum animation
+        pygame.draw.circle(surface, (200, 0, 0), pos, vacuum_size // 2, 3)
+        # Suction effect (semi-transparent circle)
+        s = pygame.Surface((vacuum_size, vacuum_size), pygame.SRCALPHA)
+        pygame.draw.circle(s, (255, 0, 0, 100), (vacuum_size // 2, vacuum_size // 2), vacuum_size // 2)
+        surface.blit(s, (pos[0] - vacuum_size // 2, pos[1] - vacuum_size // 2))
+        # Add sparkles for visual feedback
+        add_sparkles(pos[0], pos[1])
+    else:
+        # Inactive vacuum head
+        pygame.draw.circle(surface, VACUUM_COLOR, pos, vacuum_size // 2, 3)
+    # Draw handle
+    handle_start = (pos[0], pos[1])
+    handle_end = (pos[0] + 30, pos[1] + 30)
+    pygame.draw.line(surface, VACUUM_COLOR, handle_start, handle_end, 4)
+
+
 # Main Game Loop
 running = True
 while running:
     clock.tick(60)  # 60 FPS
 
-    if cloth_mode:
+    # Handle cleaning modes cursor visibility
+    if cloth_mode or vacuum_mode:
         pygame.mouse.set_visible(False)
         mouse_pos = pygame.mouse.get_pos()
         cleaning_active = pygame.mouse.get_pressed()[0]
+
         if cleaning_active:
-            cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
-            original_count = len(droppings)
-            droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
-            cleaned_count = original_count - len(droppings)
-            if cleaned_count > 0:
-                current_time = pygame.time.get_ticks()
-                if current_time - last_clean_time <= COMBO_TIMEOUT:
-                    combo_multiplier = min(combo_multiplier + 0.5, 4.0)
-                else:
-                    combo_multiplier = 1.0
-                last_clean_time = current_time
-                cleaning_score += int(10 * combo_multiplier * cleaned_count)
-                add_sparkles(mouse_pos[0], mouse_pos[1])
+            if cloth_mode:
+                # Existing cloth cleaning logic
+                cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
+                original_count = len(droppings)
+                droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
+                cleaned_count = original_count - len(droppings)
+                if cleaned_count > 0:
+                    current_time = pygame.time.get_ticks()
+                    if current_time - last_clean_time <= COMBO_TIMEOUT:
+                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
+                    else:
+                        combo_multiplier = 1.0
+                    last_clean_time = current_time
+                    cleaning_score += int(10 * combo_multiplier * cleaned_count)
+                    add_sparkles(mouse_pos[0], mouse_pos[1])
+            elif vacuum_mode:
+                # Vacuum cleaning logic
+                vacuum_radius = 25  # Size of vacuum effect
+                original_count = len(dander)
+                dander = [d for d in dander if (d[0] - mouse_pos[0])**2 + (d[1] - mouse_pos[1])**2 > vacuum_radius**2]
+                cleaned_count = original_count - len(dander)
+                if cleaned_count > 0:
+                    current_time = pygame.time.get_ticks()
+                    if current_time - last_clean_time <= COMBO_TIMEOUT:
+                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
+                    else:
+                        combo_multiplier = 1.0
+                    last_clean_time = current_time
+                    cleaning_score += int(5 * combo_multiplier * cleaned_count)
+                    add_sparkles(mouse_pos[0], mouse_pos[1])
     else:
         pygame.mouse.set_visible(True)
 
@@ -245,19 +288,19 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = pygame.mouse.get_pos()
             if vacuum_button.collidepoint(pos):
-                if len(dander) > 0:
-                    cleaning_score += int(5 * len(dander) * update_combo())
-                    last_clean_time = pygame.time.get_ticks()
-                dander.clear()
-                add_sparkles(pos[0], pos[1])
-                print("Dander vacuumed!")
+                # Toggle vacuum mode, disable cloth mode
+                vacuum_mode = not vacuum_mode
+                cloth_mode = False
+                print("Vacuum mode:", vacuum_mode)
             elif cloth_button.collidepoint(pos):
+                # Toggle cloth mode, disable vacuum mode
                 cloth_mode = not cloth_mode
+                vacuum_mode = False
                 print("Cloth mode:", cloth_mode)
             elif feed_button.collidepoint(pos):
                 pigeon.action_message = "Yum, seeds!"
                 print("Fed the pigeon!")
-            elif not cloth_mode:
+            elif not (cloth_mode or vacuum_mode):
                 dx = pos[0] - pigeon.x
                 dy = pos[1] - pigeon.y
                 if dx * dx + dy * dy <= 50 * 50:
@@ -303,10 +346,11 @@ while running:
         cleanliness = 1 - (total_mess / 50)  # Assume 50 is max mess
         draw_progress_bar(screen, 50, 20, 200, 20, cleanliness, (0, 255, 0))
 
+    # Draw cleaning tool cursors
     if cloth_mode:
-        mouse_pos = pygame.mouse.get_pos()
-        cleaning_active = pygame.mouse.get_pressed()[0]
         draw_cloth(screen, mouse_pos, cleaning_active)
+    elif vacuum_mode:
+        draw_vacuum(screen, mouse_pos, cleaning_active)
 
     pygame.display.flip()
 
