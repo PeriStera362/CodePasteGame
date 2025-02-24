@@ -242,12 +242,13 @@ running = True
 while running:
     clock.tick(60)  # 60 FPS
 
+    # Initialize mouse position and cleaning state variables
+    mouse_pos = pygame.mouse.get_pos()
+    cleaning_active = pygame.mouse.get_pressed()[0]
+
     # Handle cleaning modes cursor visibility
     if cloth_mode or vacuum_mode:
         pygame.mouse.set_visible(False)
-        mouse_pos = pygame.mouse.get_pos()
-        cleaning_active = pygame.mouse.get_pressed()[0]
-
         if cleaning_active:
             if cloth_mode:
                 # Existing cloth cleaning logic
