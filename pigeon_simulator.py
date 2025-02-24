@@ -343,74 +343,72 @@ def draw_vacuum(surface, pos, cleaning):
     handle_end = (pos[0] + 30, pos[1] + 30)
     pygame.draw.line(surface, VACUUM_COLOR, handle_start, handle_end, 4)
 
+# Feed button specific changes
+def draw_feed_cursor(surface, pos):
+    """Draw seed cursor when in feed mode."""
+    cursor_radius = 3
+    seed_positions = [
+        (-5, -5), (0, -5), (5, -5),
+        (-5, 0), (0, 0), (5, 0),
+        (-5, 5), (0, 5), (5, 5)
+    ]
+    for dx, dy in seed_positions:
+        pygame.draw.circle(surface, SEED_COLOR,
+                           (pos[0] + dx, pos[1] + dy), cursor_radius)
 
-# Main Game Loop
+
+# Main game loop feed mode handling
 running = True
 feed_mode = False
 while running:
     clock.tick(60)  # 60 FPS
 
-    # Initialize mouse position and cleaning state variables
+    # Get current mouse position
     mouse_pos = pygame.mouse.get_pos()
     cleaning_active = pygame.mouse.get_pressed()[0]
 
-    # Handle cleaning modes cursor visibility
-    if cloth_mode or vacuum_mode:
+    # Handle cursor visibility based on modes
+    if cloth_mode or vacuum_mode or feed_mode:
         pygame.mouse.set_visible(False)
-        if cleaning_active:
-            if cloth_mode:
-                # Existing cloth cleaning logic
-                cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
-                original_count = len(droppings)
-                droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
-                cleaned_count = original_count - len(droppings)
-                if cleaned_count > 0:
-                    current_time = pygame.time.get_ticks()
-                    if current_time - last_clean_time <= COMBO_TIMEOUT:
-                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
-                    else:
-                        combo_multiplier = 1.0
-                    last_clean_time = current_time
-                    cleaning_score += int(10 * combo_multiplier * cleaned_count)
-                    add_sparkles(mouse_pos[0], mouse_pos[1])
-            elif vacuum_mode:
-                # Vacuum cleaning logic
-                vacuum_radius = 25  # Size of vacuum effect
-                original_count = len(dander)
-                dander = [d for d in dander if (d[0] - mouse_pos[0]) ** 2 + (d[1] - mouse_pos[1]) ** 2 > vacuum_radius ** 2]
-                cleaned_count = original_count - len(dander)
-                if cleaned_count > 0:
-                    current_time = pygame.time.get_ticks()
-                    if current_time - last_clean_time <= COMBO_TIMEOUT:
-                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
-                    else:
-                        combo_multiplier = 1.0
-                    last_clean_time = current_time
-                    cleaning_score += int(5 * combo_multiplier * cleaned_count)
-                    add_sparkles(mouse_pos[0], mouse_pos[1])
     else:
         pygame.mouse.set_visible(True)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = pygame.mouse.get_pos()
-            if vacuum_button.collidepoint(pos):
-                # Toggle vacuum mode, disable cloth mode
-                vacuum_mode = not vacuum_mode
+
+            # Handle button clicks
+            if feed_button.collidepoint(pos):
+                feed_mode = True
                 cloth_mode = False
-                print("Vacuum mode:", vacuum_mode)
+                vacuum_mode = False
+                print("Feed mode activated")
             elif cloth_button.collidepoint(pos):
-                # Toggle cloth mode, disable vacuum mode
                 cloth_mode = not cloth_mode
+                feed_mode = False
                 vacuum_mode = False
                 print("Cloth mode:", cloth_mode)
-            elif feed_button.collidepoint(pos):
-                feed_mode = True
-                pigeon.action_message = "Yum, seeds!"
-                print("Fed the pigeon!")
-            elif not (cloth_mode or vacuum_mode):
+            elif vacuum_button.collidepoint(pos):
+                vacuum_mode = not vacuum_mode
+                cloth_mode = False
+                feed_mode = False
+                print("Vacuum mode:", vacuum_mode)
+            # Handle feed mode click
+            elif feed_mode:
+                num_seeds = random.randint(8, 12)
+                scatter_radius = 20
+                for _ in range(num_seeds):
+                    seed_x = pos[0] + random.uniform(-scatter_radius, scatter_radius)
+                    seed_y = pos[1] - random.uniform(20, 40)
+                    target_y = pos[1] + random.uniform(-5, 5)
+                    seeds.append(SeedParticle(seed_x, seed_y, target_y))
+                feed_mode = False
+                print(f"Dropped {num_seeds} seeds")
+            # Handle normal click (petting)
+            elif not any([cloth_mode, vacuum_mode, feed_mode]):
                 dx = pos[0] - pigeon.x
                 dy = pos[1] - pigeon.y
                 if dx * dx + dy * dy <= 50 * 50:
@@ -421,23 +419,9 @@ while running:
     pigeon.update()
     sparkles = [spark for spark in sparkles if spark.update()]
 
-    #Handle seed creation on feed button click
-    if feed_mode and event.type == pygame.MOUSEBUTTONDOWN:
-        pos = pygame.mouse.get_pos()
-        num_seeds = random.randint(8, 12)
-        scatter_radius = 20
-        for _ in range(num_seeds):
-            seed_x = pos[0] + random.uniform(-scatter_radius, scatter_radius)
-            seed_y = pos[1] - random.uniform(20, 40)
-            target_y = pos[1] + random.uniform(-5, 5)
-            seeds.append(SeedParticle(seed_x, seed_y, target_y))
-        feed_mode = False
-
     # Update and draw seeds
     for seed in seeds[:]:
         seed.update()
-        seed.draw(screen)
-        # Check if pigeon is close enough to eat the seed
         if not seed.falling:
             dx = seed.x - pigeon.x
             dy = seed.y - pigeon.y
@@ -453,7 +437,11 @@ while running:
         pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
     for spark in sparkles:
         spark.draw(screen)
+    for seed in seeds:
+        seed.draw(screen)
     pigeon.draw(screen)
+    pigeon.draw_satiety_meter(screen)
+    pigeon.draw_feeding_effects(screen)
 
     # Draw UI elements
     pygame.draw.rect(screen, GRAY, vacuum_button)
@@ -468,23 +456,19 @@ while running:
     screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
     screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
 
-    # Draw score and combo
-    score_text = score_font.render(f"Score: {cleaning_score}", True, BLACK)
-    combo_text = font.render(f"Combo: x{combo_multiplier:.1f}", True, BLACK)
-    screen.blit(score_text, (WIDTH - 200, 20))
-    screen.blit(combo_text, (WIDTH - 200, 60))
-
     # Draw cleaning progress bar
     total_mess = len(dander) + len(droppings)
     if total_mess > 0:
         cleanliness = 1 - (total_mess / 50)  # Assume 50 is max mess
         draw_progress_bar(screen, 50, 20, 200, 20, cleanliness, (0, 255, 0))
 
-    # Draw cleaning tool cursors
+    # Draw custom cursors for different modes
     if cloth_mode:
         draw_cloth(screen, mouse_pos, cleaning_active)
     elif vacuum_mode:
         draw_vacuum(screen, mouse_pos, cleaning_active)
+    elif feed_mode:
+        draw_feed_cursor(screen, mouse_pos)
 
     pygame.display.flip()
 
