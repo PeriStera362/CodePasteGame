@@ -1,0 +1,227 @@
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Pet Pigeon Simulator")
+clock = pygame.time.Clock()
+
+# Define Colors
+FLOOR_COLOR = (210, 180, 140)   # Tan floor color
+WALL_COLOR = (169, 169, 169)    # Dark grey walls
+WALL_THICKNESS = 20             # Thickness for walls
+BLACK = (0, 0, 0)
+GRAY = (200, 200, 200)
+DANDER_COLOR = (240, 230, 140)  # Light yellowish dander
+DROPPING_COLOR = (139, 69, 19)   # Brown droppings
+
+# Define Font
+font = pygame.font.SysFont(None, 24)
+
+# Define UI Button Rectangles
+vacuum_button = pygame.Rect(50, 500, 100, 50)
+cloth_button = pygame.Rect(200, 500, 100, 50)
+feed_button = pygame.Rect(350, 500, 100, 50)
+
+# Global lists to store dander and droppings positions
+dander = []
+droppings = []
+
+def draw_room(surface):
+    """Draws a top-down view of a room with a tan floor and surrounding grey walls."""
+    surface.fill(FLOOR_COLOR)
+    # Top wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WIDTH, WALL_THICKNESS))
+    # Left wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, 0, WALL_THICKNESS, HEIGHT))
+    # Bottom wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, HEIGHT - WALL_THICKNESS, WIDTH, WALL_THICKNESS))
+    # Right wall
+    pygame.draw.rect(surface, WALL_COLOR, (WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, HEIGHT))
+
+def add_dander(pigeon_x, pigeon_y):
+    """Add a burst of dander particles near the pigeon's current position."""
+    for _ in range(10):
+        x = pigeon_x + random.randint(-30, 30)
+        y = pigeon_y + random.randint(-30, 30)
+        dander.append((x, y))
+
+def add_dropping(pigeon_x, pigeon_y):
+    """Add a dropping particle near the pigeon's current position."""
+    x = pigeon_x + random.randint(-20, 20)
+    y = pigeon_y + random.randint(20, 40)
+    droppings.append((x, y))
+
+class Pigeon:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.dx = 2  # initial horizontal speed
+        self.action = "idle"
+        self.action_message = "Just chilling..."
+        self.last_action_time = pygame.time.get_ticks()
+        self.leg_phase = 0  # for leg animation
+
+    def move(self):
+        """Update the pigeon's position and bounce off the walls (respecting wall thickness)."""
+        self.x += self.dx
+        if self.x - 50 <= WALL_THICKNESS or self.x + 50 >= WIDTH - WALL_THICKNESS:
+            self.dx = -self.dx
+
+    def update(self):
+        now = pygame.time.get_ticks()
+        if self.dx != 0:
+            self.leg_phase += 0.2  # update leg animation phase
+        if now - self.last_action_time > 3000:
+            self.choose_action()
+            self.last_action_time = now
+        if self.dx != 0:
+            self.move()
+
+    def choose_action(self):
+        """Randomly choose an action and trigger side effects relative to the pigeon's current position."""
+        actions = ["drop", "frolic", "coo", "loaf", "eat"]
+        self.action = random.choice(actions)
+        if self.action == "drop":
+            self.action_message = "Oops, a dropping!"
+            add_dropping(self.x, self.y)
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "frolic":
+            self.action_message = "Fluffing feathers!"
+            add_dander(self.x, self.y)
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "coo":
+            self.action_message = "Cooing softly..."
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+        elif self.action == "loaf":
+            self.action_message = "Just loafing around."
+            self.dx = 0  # stops moving; legs not drawn
+        elif self.action == "eat":
+            self.action_message = "Munching on seeds."
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+        print("Pigeon action:", self.action)
+
+    def draw(self, surface):
+        """Draw the pigeon with its body, face, and animated legs if moving."""
+        # Draw body
+        pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
+        # Draw eyes
+        pygame.draw.circle(surface, BLACK, (int(self.x) - 15, int(self.y) - 10), 5)
+        pygame.draw.circle(surface, BLACK, (int(self.x) + 15, int(self.y) - 10), 5)
+        # Draw beak (triangle)
+        pygame.draw.polygon(surface, (255, 200, 0),
+                            [(int(self.x), int(self.y)),
+                             (int(self.x) + 30, int(self.y) + 10),
+                             (int(self.x), int(self.y) + 20)])
+        # Draw legs if moving
+        if self.dx != 0:
+            offset = int(10 * math.sin(self.leg_phase))
+            # Left leg
+            left_start = (int(self.x) - 15, int(self.y) + 50)
+            left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, left_start, left_end, 3)
+            # Right leg (swinging oppositely)
+            right_start = (int(self.x) + 15, int(self.y) + 50)
+            right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, right_start, right_end, 3)
+        # Display action message above the pigeon
+        text = font.render(self.action_message, True, BLACK)
+        surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
+
+# Create a pigeon instance centered in the room
+pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
+
+# Cloth mode variable to track if cleaning mode is active
+cloth_mode = False
+
+def draw_cloth(surface, pos, cleaning):
+    """Draws the cloth cursor at the given position.
+       If cleaning is active (mouse pressed), the cloth is drawn in red to indicate contact."""
+    cloth_size = 40
+    rect = pygame.Rect(pos[0] - cloth_size // 2, pos[1] - cloth_size // 2, cloth_size, cloth_size)
+    if cleaning:
+        # When cleaning: change appearance (red outline and semi-transparent fill)
+        pygame.draw.rect(surface, (255, 0, 0), rect, 3)
+        s = pygame.Surface((cloth_size, cloth_size), pygame.SRCALPHA)
+        s.fill((255, 0, 0, 100))
+        surface.blit(s, rect.topleft)
+    else:
+        # Normal cloth appearance
+        pygame.draw.rect(surface, (173, 216, 230), rect)
+
+running = True
+while running:
+    clock.tick(60)
+    
+    # In cloth mode, hide the system cursor and use our own cloth cursor
+    if cloth_mode:
+        pygame.mouse.set_visible(False)
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        # If cleaning is active, check if the cloth overlaps any droppings
+        if cleaning_active:
+            cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
+            # Remove droppings that are within the cloth area
+            droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
+    else:
+        pygame.mouse.set_visible(True)
+    
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            pos = pygame.mouse.get_pos()
+            # Check if UI buttons are clicked
+            if vacuum_button.collidepoint(pos):
+                dander.clear()
+                print("Dander vacuumed!")
+            elif cloth_button.collidepoint(pos):
+                # Toggle cloth mode on/off
+                cloth_mode = not cloth_mode
+                print("Cloth mode:", cloth_mode)
+            elif feed_button.collidepoint(pos):
+                pigeon.action_message = "Yum, seeds!"
+                print("Fed the pigeon!")
+            elif not cloth_mode:
+                # When not in cloth mode, clicking on the pigeon pets it.
+                dx = pos[0] - pigeon.x
+                dy = pos[1] - pigeon.y
+                if dx * dx + dy * dy <= 50 * 50:
+                    pigeon.action_message = "Coo! Thanks for the pet!"
+                    print("Petted the pigeon!")
+
+    # Update pigeon state and room contents
+    pigeon.update()
+    
+    # Draw everything
+    draw_room(screen)
+    for pos in dander:
+        pygame.draw.circle(screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
+    for pos in droppings:
+        pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
+    pigeon.draw(screen)
+    
+    # Draw UI buttons and their labels
+    pygame.draw.rect(screen, GRAY, vacuum_button)
+    pygame.draw.rect(screen, GRAY, cloth_button)
+    pygame.draw.rect(screen, GRAY, feed_button)
+    vacuum_text = font.render("Vacuum", True, BLACK)
+    cloth_text = font.render("Cloth", True, BLACK)
+    feed_text = font.render("Feed", True, BLACK)
+    screen.blit(vacuum_text, (vacuum_button.x + 10, vacuum_button.y + 15))
+    screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
+    screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
+    
+    # If cloth mode is active, draw the cloth cursor at the mouse position
+    if cloth_mode:
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        draw_cloth(screen, mouse_pos, cleaning_active)
+    
+    pygame.display.flip()
+
+pygame.quit()
