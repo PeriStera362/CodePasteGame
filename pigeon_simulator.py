@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 
 # Initialize Pygame
 pygame.init()
@@ -44,13 +45,14 @@ class Pigeon:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-        self.dx = 2  # horizontal walking speed
+        self.dx = 2  # initial horizontal speed
         self.action = "idle"
         self.action_message = "Just chilling..."
         self.last_action_time = pygame.time.get_ticks()
+        self.leg_phase = 0  # for leg animation
 
     def move(self):
-        """Update the pigeon's position (walking) and bounce off screen edges."""
+        """Update the pigeon's position and bounce off screen edges."""
         self.x += self.dx
         # Bounce off left and right edges (assuming pigeon radius of 50)
         if self.x - 50 <= 0 or self.x + 50 >= WIDTH:
@@ -59,12 +61,16 @@ class Pigeon:
     def update(self):
         """Update movement and actions. Every few seconds, choose a new random action."""
         now = pygame.time.get_ticks()
-        # Update movement continuously
-        self.move()
+        # If pigeon is moving, update leg animation
+        if self.dx != 0:
+            self.leg_phase += 0.2  # Adjust for desired swing speed
         # Choose new action every 3 seconds
         if now - self.last_action_time > 3000:
             self.choose_action()
             self.last_action_time = now
+        # Only move if not loafing (loafing = stopped)
+        if self.dx != 0:
+            self.move()
 
     def choose_action(self):
         """Randomly choose an action and trigger side effects relative to the pigeon's current position."""
@@ -73,19 +79,25 @@ class Pigeon:
         if self.action == "drop":
             self.action_message = "Oops, a dropping!"
             add_dropping(self.x, self.y)
+            # Moving action: random speed and direction
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
         elif self.action == "frolic":
             self.action_message = "Fluffing feathers!"
             add_dander(self.x, self.y)
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
         elif self.action == "coo":
             self.action_message = "Cooing softly..."
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
         elif self.action == "loaf":
             self.action_message = "Just loafing around."
+            self.dx = 0  # stop moving; legs won't animate
         elif self.action == "eat":
             self.action_message = "Munching on seeds."
+            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
         print("Pigeon action:", self.action)
 
     def draw(self, surface):
-        """Draw the pigeon and its current action message."""
+        """Draw the pigeon, its legs (if moving), and its current action message."""
         # Draw pigeon body (a simple circle)
         pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
         # Draw eyes
@@ -96,6 +108,18 @@ class Pigeon:
                             [(int(self.x), int(self.y)),
                              (int(self.x) + 30, int(self.y) + 10),
                              (int(self.x), int(self.y) + 20)])
+        # Draw legs if pigeon is moving (dx != 0)
+        if self.dx != 0:
+            # Calculate leg swing offset using sine wave for simple animation
+            offset = int(10 * math.sin(self.leg_phase))
+            # Left leg: starting at bottom left of circle
+            left_start = (int(self.x) - 15, int(self.y) + 50)
+            left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, left_start, left_end, 3)
+            # Right leg: starting at bottom right of circle; opposite swing phase
+            right_start = (int(self.x) + 15, int(self.y) + 50)
+            right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
+            pygame.draw.line(surface, BLACK, right_start, right_end, 3)
         # Display the action message above the pigeon
         text = font.render(self.action_message, True, BLACK)
         surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
