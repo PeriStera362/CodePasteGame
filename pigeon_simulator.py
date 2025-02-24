@@ -46,6 +46,7 @@ class Pigeon:
         self.x = x
         self.y = y
         self.dx = 2  # initial horizontal speed
+        self.dy = 0  # initial vertical speed
         self.action = "idle"
         self.action_message = "Just chilling..."
         self.last_action_time = pygame.time.get_ticks()
@@ -54,46 +55,58 @@ class Pigeon:
     def move(self):
         """Update the pigeon's position and bounce off screen edges."""
         self.x += self.dx
-        # Bounce off left and right edges (assuming pigeon radius of 50)
+        self.y += self.dy
+        # Bounce off edges (assuming pigeon radius of 50)
         if self.x - 50 <= 0 or self.x + 50 >= WIDTH:
             self.dx = -self.dx
+        if self.y - 50 <= 0 or self.y + 50 >= HEIGHT - 100:  # Keep above buttons
+            self.dy = -self.dy
 
     def update(self):
         """Update movement and actions. Every few seconds, choose a new random action."""
         now = pygame.time.get_ticks()
         # If pigeon is moving, update leg animation
-        if self.dx != 0:
+        if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2  # Adjust for desired swing speed
         # Choose new action every 3 seconds
         if now - self.last_action_time > 3000:
             self.choose_action()
             self.last_action_time = now
         # Only move if not loafing (loafing = stopped)
-        if self.dx != 0:
+        if self.dx != 0 or self.dy != 0:
             self.move()
 
     def choose_action(self):
         """Randomly choose an action and trigger side effects relative to the pigeon's current position."""
-        actions = ["drop", "frolic", "coo", "loaf", "eat"]
+        actions = ["drop", "frolic", "coo", "loaf", "eat", "hop"]
         self.action = random.choice(actions)
         if self.action == "drop":
             self.action_message = "Oops, a dropping!"
             add_dropping(self.x, self.y)
             # Moving action: random speed and direction
-            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+            self.dx = random.choice([-1, 1]) * random.randint(1, 3)
+            self.dy = random.choice([-1, 1]) * random.randint(1, 2)
         elif self.action == "frolic":
             self.action_message = "Fluffing feathers!"
             add_dander(self.x, self.y)
-            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+            self.dx = random.choice([-1, 1]) * random.randint(2, 4)
+            self.dy = random.choice([-1, 1]) * random.randint(1, 3)
         elif self.action == "coo":
             self.action_message = "Cooing softly..."
-            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+            self.dx = random.choice([-1, 1]) * random.randint(1, 2)
+            self.dy = 0  # Stays at same height while cooing
         elif self.action == "loaf":
             self.action_message = "Just loafing around."
-            self.dx = 0  # stop moving; legs won't animate
+            self.dx = 0  # stop moving
+            self.dy = 0
         elif self.action == "eat":
             self.action_message = "Munching on seeds."
-            self.dx = random.choice([-1, 1]) * random.randint(1, 4)
+            self.dx = random.choice([-1, 1])  # Slow movement while eating
+            self.dy = 0
+        elif self.action == "hop":
+            self.action_message = "Hop hop!"
+            self.dx = random.choice([-1, 1]) * 2
+            self.dy = -4  # Quick upward hop
         print("Pigeon action:", self.action)
 
     def draw(self, surface):
@@ -109,7 +122,7 @@ class Pigeon:
                              (int(self.x) + 30, int(self.y) + 10),
                              (int(self.x), int(self.y) + 20)])
         # Draw legs if pigeon is moving (dx != 0)
-        if self.dx != 0:
+        if self.dx != 0 or self.dy != 0:
             # Calculate leg swing offset using sine wave for simple animation
             offset = int(10 * math.sin(self.leg_phase))
             # Left leg: starting at bottom left of circle
