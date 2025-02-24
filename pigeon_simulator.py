@@ -17,18 +17,66 @@ BLACK = (0, 0, 0)
 GRAY = (200, 200, 200)
 DANDER_COLOR = (240, 230, 140)   # Light yellowish dander
 DROPPING_COLOR = (139, 69, 19)    # Brown droppings
+SPARKLE_COLOR = (255, 255, 200)   # Light yellow sparkles
 
 # Define Font
 font = pygame.font.SysFont(None, 24)
+score_font = pygame.font.SysFont(None, 36)
 
 # Define UI Button Rectangles
 vacuum_button = pygame.Rect(50, 500, 100, 50)
 cloth_button = pygame.Rect(200, 500, 100, 50)
 feed_button = pygame.Rect(350, 500, 100, 50)
 
-# Global lists to store dander and droppings positions
+# Global lists to store dander, droppings, and cleaning effects
 dander = []
 droppings = []
+sparkles = []
+cleaning_score = 0
+combo_multiplier = 1
+last_clean_time = 0
+COMBO_TIMEOUT = 2000  # 2 seconds to maintain combo
+
+class Sparkle:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.life = 1.0  # Starts full, fades to 0
+        self.speed = random.uniform(1, 3)
+        self.angle = random.uniform(0, 2 * math.pi)
+
+    def update(self):
+        self.life -= 0.05
+        self.x += math.cos(self.angle) * self.speed
+        self.y += math.sin(self.angle) * self.speed
+        return self.life > 0
+
+    def draw(self, surface):
+        alpha = int(255 * self.life)
+        color = (*SPARKLE_COLOR, alpha)
+        s = pygame.Surface((5, 5), pygame.SRCALPHA)
+        pygame.draw.circle(s, color, (2, 2), 2)
+        surface.blit(s, (int(self.x), int(self.y)))
+
+def add_sparkles(x, y):
+    """Add cleaning sparkle effects at the given position."""
+    for _ in range(5):
+        sparkles.append(Sparkle(x, y))
+
+def draw_progress_bar(surface, x, y, width, height, progress, color):
+    """Draw a progress bar with the given parameters."""
+    border = pygame.Rect(x, y, width, height)
+    inner = pygame.Rect(x, y, int(width * progress), height)
+    pygame.draw.rect(surface, BLACK, border, 2)
+    pygame.draw.rect(surface, color, inner)
+
+def update_combo():
+    """Update the combo multiplier based on timing."""
+    global combo_multiplier, last_clean_time
+    current_time = pygame.time.get_ticks()
+    if current_time - last_clean_time > COMBO_TIMEOUT:
+        combo_multiplier = 1
+    return combo_multiplier
 
 def draw_room(surface):
     """Draws a top-down view of a room with a floor and surrounding walls."""
@@ -149,44 +197,93 @@ class Pigeon:
 # Create a pigeon instance centered in the room
 pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
 
+# Cloth mode variable to track if cleaning mode is active
+cloth_mode = False
+
+def draw_cloth(surface, pos, cleaning):
+    """Draws the cloth cursor at the given position."""
+    cloth_size = 40
+    rect = pygame.Rect(pos[0] - cloth_size // 2, pos[1] - cloth_size // 2, cloth_size, cloth_size)
+    if cleaning:
+        pygame.draw.rect(surface, (255, 0, 0), rect, 3)
+        s = pygame.Surface((cloth_size, cloth_size), pygame.SRCALPHA)
+        s.fill((255, 0, 0, 100))
+        surface.blit(s, rect.topleft)
+        add_sparkles(pos[0], pos[1])
+    else:
+        pygame.draw.rect(surface, (173, 216, 230), rect)
+
 # Main Game Loop
 running = True
 while running:
     clock.tick(60)  # 60 FPS
+
+    if cloth_mode:
+        pygame.mouse.set_visible(False)
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        if cleaning_active:
+            cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
+            original_count = len(droppings)
+            droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
+            cleaned_count = original_count - len(droppings)
+            if cleaned_count > 0:
+                current_time = pygame.time.get_ticks()
+                if current_time - last_clean_time <= COMBO_TIMEOUT:
+                    combo_multiplier = min(combo_multiplier + 0.5, 4.0)
+                else:
+                    combo_multiplier = 1.0
+                last_clean_time = current_time
+                cleaning_score += int(10 * combo_multiplier * cleaned_count)
+                add_sparkles(mouse_pos[0], mouse_pos[1])
+    else:
+        pygame.mouse.set_visible(True)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = pygame.mouse.get_pos()
             if vacuum_button.collidepoint(pos):
+                if len(dander) > 0:
+                    cleaning_score += int(5 * len(dander) * update_combo())
+                    last_clean_time = pygame.time.get_ticks()
                 dander.clear()
+                add_sparkles(pos[0], pos[1])
                 print("Dander vacuumed!")
             elif cloth_button.collidepoint(pos):
-                droppings.clear()
-                print("Droppings cleaned!")
+                cloth_mode = not cloth_mode
+                print("Cloth mode:", cloth_mode)
             elif feed_button.collidepoint(pos):
                 pigeon.action_message = "Yum, seeds!"
                 print("Fed the pigeon!")
-            else:
-                # Check if the pigeon was clicked
+            elif not cloth_mode:
                 dx = pos[0] - pigeon.x
                 dy = pos[1] - pigeon.y
                 if dx * dx + dy * dy <= 50 * 50:
                     pigeon.action_message = "Coo! Thanks for the pet!"
                     print("Petted the pigeon!")
 
+    # Update game state
     pigeon.update()
-    draw_room(screen)  # Draw the room background
-    # Draw dander and droppings relative to their positions
+    sparkles = [spark for spark in sparkles if spark.update()]
+
+    # Draw everything
+    draw_room(screen)
     for pos in dander:
         pygame.draw.circle(screen, DANDER_COLOR, (int(pos[0]), int(pos[1])), 3)
     for pos in droppings:
         pygame.draw.circle(screen, DROPPING_COLOR, (int(pos[0]), int(pos[1])), 5)
+    for spark in sparkles:
+        spark.draw(screen)
     pigeon.draw(screen)
-    # Draw UI Buttons
+
+    # Draw UI elements
     pygame.draw.rect(screen, GRAY, vacuum_button)
     pygame.draw.rect(screen, GRAY, cloth_button)
     pygame.draw.rect(screen, GRAY, feed_button)
+
+    # Draw button labels
     vacuum_text = font.render("Vacuum", True, BLACK)
     cloth_text = font.render("Cloth", True, BLACK)
     feed_text = font.render("Feed", True, BLACK)
@@ -194,5 +291,23 @@ while running:
     screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
     screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
 
+    # Draw score and combo
+    score_text = score_font.render(f"Score: {cleaning_score}", True, BLACK)
+    combo_text = font.render(f"Combo: x{combo_multiplier:.1f}", True, BLACK)
+    screen.blit(score_text, (WIDTH - 200, 20))
+    screen.blit(combo_text, (WIDTH - 200, 60))
+
+    # Draw cleaning progress bar
+    total_mess = len(dander) + len(droppings)
+    if total_mess > 0:
+        cleanliness = 1 - (total_mess / 50)  # Assume 50 is max mess
+        draw_progress_bar(screen, 50, 20, 200, 20, cleanliness, (0, 255, 0))
+
+    if cloth_mode:
+        mouse_pos = pygame.mouse.get_pos()
+        cleaning_active = pygame.mouse.get_pressed()[0]
+        draw_cloth(screen, mouse_pos, cleaning_active)
+
     pygame.display.flip()
+
 pygame.quit()
