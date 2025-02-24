@@ -343,6 +343,7 @@ def draw_vacuum(surface, pos, cleaning):
     handle_end = (pos[0] + 30, pos[1] + 30)
     pygame.draw.line(surface, VACUUM_COLOR, handle_start, handle_end, 4)
 
+
 # Feed button specific changes
 def draw_feed_cursor(surface, pos):
     """Draw seed cursor when in feed mode."""
@@ -370,6 +371,37 @@ while running:
     # Handle cursor visibility based on modes
     if cloth_mode or vacuum_mode or feed_mode:
         pygame.mouse.set_visible(False)
+        if cleaning_active:
+            if cloth_mode:
+                # Cloth cleaning logic
+                cloth_rect = pygame.Rect(mouse_pos[0] - 20, mouse_pos[1] - 20, 40, 40)
+                original_count = len(droppings)
+                droppings = [drop for drop in droppings if not cloth_rect.collidepoint(drop)]
+                cleaned_count = original_count - len(droppings)
+                if cleaned_count > 0:
+                    current_time = pygame.time.get_ticks()
+                    if current_time - last_clean_time <= COMBO_TIMEOUT:
+                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
+                    else:
+                        combo_multiplier = 1.0
+                    last_clean_time = current_time
+                    cleaning_score += int(10 * combo_multiplier * cleaned_count)
+                    add_sparkles(mouse_pos[0], mouse_pos[1])
+            elif vacuum_mode:
+                # Vacuum cleaning logic
+                vacuum_radius = 25  # Size of vacuum effect
+                original_count = len(dander)
+                dander = [d for d in dander if (d[0] - mouse_pos[0])**2 + (d[1] - mouse_pos[1])**2 > vacuum_radius**2]
+                cleaned_count = original_count - len(dander)
+                if cleaned_count > 0:
+                    current_time = pygame.time.get_ticks()
+                    if current_time - last_clean_time <= COMBO_TIMEOUT:
+                        combo_multiplier = min(combo_multiplier + 0.5, 4.0)
+                    else:
+                        combo_multiplier = 1.0
+                    last_clean_time = current_time
+                    cleaning_score += int(5 * combo_multiplier * cleaned_count)
+                    add_sparkles(mouse_pos[0], mouse_pos[1])
     else:
         pygame.mouse.set_visible(True)
 
@@ -455,6 +487,12 @@ while running:
     screen.blit(vacuum_text, (vacuum_button.x + 10, vacuum_button.y + 15))
     screen.blit(cloth_text, (cloth_button.x + 10, cloth_button.y + 15))
     screen.blit(feed_text, (feed_button.x + 10, feed_button.y + 15))
+
+    # Draw score and combo
+    score_text = score_font.render(f"Score: {cleaning_score}", True, BLACK)
+    combo_text = font.render(f"Combo: x{combo_multiplier:.1f}", True, BLACK)
+    screen.blit(score_text, (WIDTH - 200, 20))
+    screen.blit(combo_text, (WIDTH - 200, 60))
 
     # Draw cleaning progress bar
     total_mess = len(dander) + len(droppings)
