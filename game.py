@@ -89,7 +89,7 @@ class Game:
         dx = pos[0] - self.pigeon.x
         dy = pos[1] - self.pigeon.y
         if dx * dx + dy * dy <= 50 * 50:
-            self.pigeon.action_message = "Coo! Thanks for the pet!"
+            self.pigeon.start_petting()
 
     def handle_cleaning(self, pos, cleaning_active):
         """Handle cleaning mode interactions."""

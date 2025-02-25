@@ -125,12 +125,33 @@ class Pigeon:
         # Eating-related attributes
         self.is_eating = False
         self.eating_time = 0
-        self.eating_duration = 800  # Reduced from 1500ms to 800ms
+        self.eating_duration = 800
         self.eating_animation_phase = 0
         self.target_seed = None
+        # Petting-related attributes
+        self.being_petted = False
+        self.pet_time = 0
+        self.pet_duration = 1000  # 1 second of happy animation
+        self.pet_animation_phase = 0
+
+    def start_petting(self):
+        """Start the petting animation."""
+        self.being_petted = True
+        self.pet_time = pygame.time.get_ticks()
+        self.pet_animation_phase = 0
+        self.action_message = "Coo! Thanks for the pet!"
+        # Increase happiness when petted
+        self.happiness = min(100, self.happiness + 10)
 
     def update(self):
         now = pygame.time.get_ticks()
+
+        # Handle petting animation
+        if self.being_petted:
+            self.pet_animation_phase += 0.2
+            if now - self.pet_time >= self.pet_duration:
+                self.being_petted = False
+                self.pet_animation_phase = 0
 
         # Only update satiety and stats if not eating
         if not self.is_eating:
@@ -139,6 +160,7 @@ class Pigeon:
             self.hunger = min(100, self.hunger + 0.1)
             self.energy = max(0, self.energy - 0.05)
             self.cleanliness = max(0, self.cleanliness - 0.1)
+            self.happiness = max(0, self.happiness - 0.05)  # Gradual decrease in happiness
             self.happiness = (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4
 
         self.update_feeding_effects()
@@ -194,21 +216,13 @@ class Pigeon:
 
     def draw(self, surface):
         """Draw the pigeon with its body, face, and animated legs if moving."""
+        bob_offset = 0
+
         if self.is_eating:
             # Eating animation
             bob_offset = math.sin(self.eating_animation_phase) * 5
             pygame.draw.circle(surface, (150, 150, 150), 
                              (int(self.x), int(self.y + bob_offset)), 50)
-
-            # Draw eyes (blinking during eating)
-            blink = self.eating_animation_phase % 6 < 0.5
-            eye_height = 2 if blink else 5
-            pygame.draw.ellipse(surface, (0, 0, 0), 
-                              (int(self.x) - 15 - 5, int(self.y + bob_offset) - 10 - eye_height//2, 
-                               10, eye_height))
-            pygame.draw.ellipse(surface, (0, 0, 0), 
-                              (int(self.x) + 15 - 5, int(self.y + bob_offset) - 10 - eye_height//2, 
-                               10, eye_height))
 
             # Animate beak during eating
             beak_open = math.sin(self.eating_animation_phase * 2) * 10
@@ -219,21 +233,49 @@ class Pigeon:
         else:
             # Normal drawing
             pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
-            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) - 15, int(self.y) - 10), 5)
-            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) + 15, int(self.y) - 10), 5)
             pygame.draw.polygon(surface, (255, 200, 0),
                               [(int(self.x), int(self.y)),
                                (int(self.x) + 30, int(self.y) + 10),
                                (int(self.x), int(self.y) + 20)])
 
-            if self.dx != 0 or self.dy != 0:
-                offset = int(10 * math.sin(self.leg_phase))
-                left_start = (int(self.x) - 15, int(self.y) + 50)
-                left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
-                pygame.draw.line(surface, (0, 0, 0), left_start, left_end, 3)
-                right_start = (int(self.x) + 15, int(self.y) + 50)
-                right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
-                pygame.draw.line(surface, (0, 0, 0), right_start, right_end, 3)
+        # Draw eyes based on state
+        if self.being_petted:
+            # Happy closed eyes (^ ^)
+            eye_y = self.y + bob_offset - 10
+            # Left eye
+            start_l = (int(self.x) - 20, int(eye_y))
+            end_l = (int(self.x) - 10, int(eye_y))
+            control_l = (int(self.x) - 15, int(eye_y) - 5)
+            # Right eye
+            start_r = (int(self.x) + 10, int(eye_y))
+            end_r = (int(self.x) + 20, int(eye_y))
+            control_r = (int(self.x) + 15, int(eye_y) - 5)
+
+            # Draw curved lines for happy eyes
+            for i in range(0, 10):
+                t = i / 10
+                # Left eye
+                x1 = (1-t)**2 * start_l[0] + 2*(1-t)*t*control_l[0] + t**2*end_l[0]
+                y1 = (1-t)**2 * start_l[1] + 2*(1-t)*t*control_l[1] + t**2*end_l[1]
+                # Right eye
+                x2 = (1-t)**2 * start_r[0] + 2*(1-t)*t*control_r[0] + t**2*end_r[0]
+                y2 = (1-t)**2 * start_r[1] + 2*(1-t)*t*control_r[1] + t**2*end_r[1]
+
+                pygame.draw.circle(surface, (0, 0, 0), (int(x1), int(y1)), 1)
+                pygame.draw.circle(surface, (0, 0, 0), (int(x2), int(y2)), 1)
+        else:
+            # Normal eyes
+            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) - 15, int(self.y + bob_offset) - 10), 5)
+            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) + 15, int(self.y + bob_offset) - 10), 5)
+
+        if self.dx != 0 or self.dy != 0:
+            offset = int(10 * math.sin(self.leg_phase))
+            left_start = (int(self.x) - 15, int(self.y) + 50)
+            left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
+            pygame.draw.line(surface, (0, 0, 0), left_start, left_end, 3)
+            right_start = (int(self.x) + 15, int(self.y) + 50)
+            right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
+            pygame.draw.line(surface, (0, 0, 0), right_start, right_end, 3)
 
         # Display action message above the pigeon
         font = pygame.font.Font(None, 24)
