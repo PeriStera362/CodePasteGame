@@ -215,8 +215,7 @@ class Pigeon:
             self.hunger = min(100, self.hunger + 0.02)  # Reduced from 0.1
             self.energy = max(0, self.energy - 0.01)    # Reduced from 0.05
             self.cleanliness = max(0, self.cleanliness - 0.015)  # Reduced from 0.1
-            self.happiness = max(0, self.happiness - 0.01)  # Reduced from 0.05
-            self.happiness = min(100, (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4)
+            self.happiness = max(0, self.happiness - 0.01)  # Gradual decrease in happiness
 
         self.update_feeding_effects()
 
@@ -232,8 +231,11 @@ class Pigeon:
                 self.playing_with_ball = False
                 self.target_ball = None
                 self.action_message = "That was fun!"
+                self.happiness = min(100, self.happiness + 20)  # Big happiness boost when finishing play session
             elif self.target_ball:
                 self.chase_ball(self.target_ball)
+                # Small continuous happiness boost while playing
+                self.happiness = min(100, self.happiness + 0.05)
 
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
@@ -391,11 +393,12 @@ class Pigeon:
         y = self.y + random.randint(20, 40)
         self.droppings.append((x, y))
 
-    def eat_seed(self, seed_pos, seed_object): #Added seed_object parameter
+    def eat_seed(self, seed_pos, seed_object):
         self.hunger = max(0, self.hunger - 10)  # Reduce hunger
+        self.happiness = min(100, self.happiness + 5)  # Small happiness boost from eating
         self.feeding_effects.append(FeedingEffect(seed_pos[0], seed_pos[1]))
         self.start_eating(seed_pos)
-        seed_object.being_eaten = True #Added line to initiate fade-out
+        seed_object.being_eaten = True
 
     def update_feeding_effects(self):
         self.feeding_effects = [effect for effect in self.feeding_effects if effect.update()]
@@ -419,7 +422,7 @@ class Pigeon:
         self.play_start_time = pygame.time.get_ticks()
         self.target_ball = ball
         self.action_message = "Time to play!"
-        self.happiness = min(100, self.happiness + 15)  # Increase happiness when playing
+        self.happiness = min(100, self.happiness + 15)  # Initial happiness boost when starting to play
 
     def start_petting(self):
         """Start the petting animation."""
@@ -427,7 +430,7 @@ class Pigeon:
         self.pet_time = pygame.time.get_ticks()
         self.pet_animation_phase = 0
         self.action_message = "Coo! Thanks for the pet!"
-        self.happiness = min(100, self.happiness + 10)  # Increase happiness when petted
+        self.happiness = min(100, self.happiness + 25)  # Major happiness boost from petting
 
     def chase_ball(self, ball):
         """Chase the ball and push it when close."""
