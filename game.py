@@ -140,8 +140,11 @@ class Game:
 
         # Update seeds and check for eating
         for seed in self.seeds[:]:
-            seed.update()
-            if not seed.falling:
+            if not seed.update():  # If seed has completely faded out
+                self.seeds.remove(seed)
+                continue
+
+            if not seed.falling and not seed.being_eaten:
                 dx = seed.x - self.pigeon.x
                 dy = seed.y - self.pigeon.y
                 distance = dx * dx + dy * dy
@@ -150,9 +153,8 @@ class Game:
                 if distance < 50 * 50:
                     if not self.pigeon.is_eating:
                         self.pigeon.start_eating((seed.x, seed.y))
-                    elif pygame.time.get_ticks() - self.pigeon.eating_time >= self.pigeon.eating_duration:
+                        seed.being_eaten = True
                         self.pigeon.eat_seed((seed.x, seed.y))
-                        self.seeds.remove(seed) #Corrected seeds to self.seeds
                 # If seed is visible and not too far, move towards it
                 elif distance < 200 * 200 and not self.pigeon.is_eating:
                     self.pigeon.move_towards_seed((seed.x, seed.y))

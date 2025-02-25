@@ -68,14 +68,20 @@ class SeedParticle:
         self.rotation = random.uniform(0, 360)
         self.spin_speed = random.uniform(-5, 5)
         self.scale = random.uniform(0.8, 1.2)
+        self.being_eaten = False
+        self.fade_alpha = 255
 
     def update(self):
-        if self.falling:
+        if self.being_eaten:
+            self.fade_alpha = max(0, self.fade_alpha - 15)  # Fade out when being eaten
+            return self.fade_alpha > 0
+        elif self.falling:
             self.y += self.fall_speed
             self.rotation += self.spin_speed
             if self.y >= self.target_y:
                 self.y = self.target_y
                 self.falling = False
+        return True
 
     def draw(self, surface):
         seed_size = 3 * self.scale
@@ -87,7 +93,15 @@ class SeedParticle:
             (self.x + math.cos(math.radians(self.rotation + 240)) * seed_size,
              self.y + math.sin(math.radians(self.rotation + 240)) * seed_size)
         ]
-        pygame.draw.polygon(surface, SEED_COLOR, points)
+
+        if self.being_eaten:
+            s = pygame.Surface((seed_size * 4, seed_size * 4), pygame.SRCALPHA)
+            pygame.draw.polygon(s, (*SEED_COLOR, self.fade_alpha), [
+                (p[0] - self.x + seed_size * 2, p[1] - self.y + seed_size * 2) for p in points
+            ])
+            surface.blit(s, (self.x - seed_size * 2, self.y - seed_size * 2))
+        else:
+            pygame.draw.polygon(surface, SEED_COLOR, points)
 
 class Pigeon:
     def __init__(self, x, y):
@@ -108,35 +122,35 @@ class Pigeon:
         self.feeding_effects = []
         self.dander = []
         self.droppings = []
-        # New eating-related attributes
+        # Eating-related attributes
         self.is_eating = False
         self.eating_time = 0
-        self.eating_duration = 1500  # 1.5 seconds per seed
+        self.eating_duration = 800  # Reduced from 1500ms to 800ms
         self.eating_animation_phase = 0
         self.target_seed = None
 
     def update(self):
         now = pygame.time.get_ticks()
-        self.satiety = max(0, self.satiety - 0.02)
+
+        # Only update satiety and stats if not eating
+        if not self.is_eating:
+            self.satiety = max(0, self.satiety - 0.02)
+            # Update core stats only when not eating
+            self.hunger = min(100, self.hunger + 0.1)
+            self.energy = max(0, self.energy - 0.05)
+            self.cleanliness = max(0, self.cleanliness - 0.1)
+            self.happiness = (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4
+
         self.update_feeding_effects()
 
         if self.is_eating:
-            # Handle eating animation
             self.eating_animation_phase += 0.2
             if now - self.eating_time >= self.eating_duration:
-                self.is_eating = False
-                self.dx = random.choice([-1, 1])
-                self.dy = 0
+                self.finish_eating()
             return  # Don't move while eating
 
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
-
-        # Update core stats
-        self.hunger = min(100, self.hunger + 0.1)
-        self.energy = max(0, self.energy - 0.05)
-        self.cleanliness = max(0, self.cleanliness - 0.1)
-        self.happiness = (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4
 
         if now - self.last_action_time > 3000:
             self.choose_action()
@@ -145,8 +159,20 @@ class Pigeon:
         if self.dx != 0 or self.dy != 0:
             self.move()
 
+    def finish_eating(self):
+        """Reset eating state and resume normal behavior."""
+        self.is_eating = False
+        self.target_seed = None
+        self.eating_animation_phase = 0
+        self.action_message = "Yum!"
+        self.dx = random.choice([-1, 1])  # Resume random movement
+        self.dy = 0
+
     def move_towards_seed(self, seed_pos):
         """Move the pigeon towards a seed."""
+        if self.is_eating:
+            return  # Don't move if already eating
+
         dx = seed_pos[0] - self.x
         dy = seed_pos[1] - self.y
         dist = (dx * dx + dy * dy) ** 0.5
@@ -156,6 +182,9 @@ class Pigeon:
 
     def start_eating(self, seed_pos):
         """Start the eating animation."""
+        if self.is_eating:
+            return  # Don't start eating if already eating
+
         self.is_eating = True
         self.eating_time = pygame.time.get_ticks()
         self.dx = 0
@@ -256,10 +285,12 @@ class Pigeon:
         y = self.y + random.randint(20, 40)
         self.droppings.append((x, y))
 
-    def eat_seed(self, seed_pos):
+    def eat_seed(self, seed_pos, seed_object): #Added seed_object parameter
         self.satiety = min(self.satiety + 5, 100)
         self.feeding_effects.append(FeedingEffect(seed_pos[0], seed_pos[1]))
         self.start_eating(seed_pos)
+        seed_object.being_eaten = True #Added line to initiate fade-out
+
 
     def update_feeding_effects(self):
         self.feeding_effects = [effect for effect in self.feeding_effects if effect.update()]
