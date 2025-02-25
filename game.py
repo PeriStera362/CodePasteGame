@@ -152,9 +152,7 @@ class Game:
                 # If pigeon is close enough to eat
                 if distance < 50 * 50:
                     if not self.pigeon.is_eating:
-                        self.pigeon.start_eating((seed.x, seed.y))
-                        seed.being_eaten = True
-                        self.pigeon.eat_seed((seed.x, seed.y))
+                        self.pigeon.eat_seed((seed.x, seed.y), seed)
                 # If seed is visible and not too far, move towards it
                 elif distance < 200 * 200 and not self.pigeon.is_eating:
                     self.pigeon.move_towards_seed((seed.x, seed.y))
