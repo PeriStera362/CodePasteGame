@@ -106,14 +106,28 @@ class Pigeon:
         self.leg_phase = 0
         self.satiety = 50
         self.feeding_effects = []
-        # Added reference to game for accessing dander and droppings
         self.dander = []
         self.droppings = []
+        # New eating-related attributes
+        self.is_eating = False
+        self.eating_time = 0
+        self.eating_duration = 1500  # 1.5 seconds per seed
+        self.eating_animation_phase = 0
+        self.target_seed = None
 
     def update(self):
         now = pygame.time.get_ticks()
         self.satiety = max(0, self.satiety - 0.02)
         self.update_feeding_effects()
+
+        if self.is_eating:
+            # Handle eating animation
+            self.eating_animation_phase += 0.2
+            if now - self.eating_time >= self.eating_duration:
+                self.is_eating = False
+                self.dx = random.choice([-1, 1])
+                self.dy = 0
+            return  # Don't move while eating
 
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
@@ -131,34 +145,70 @@ class Pigeon:
         if self.dx != 0 or self.dy != 0:
             self.move()
 
-    def move(self):
-        self.x += self.dx
-        self.y += self.dy
-        if self.x - 50 <= 20 or self.x + 50 >= 780:
-            self.dx = -self.dx
-        if self.y - 50 <= 20 or self.y + 50 >= 500:
-            self.dy = -self.dy
+    def move_towards_seed(self, seed_pos):
+        """Move the pigeon towards a seed."""
+        dx = seed_pos[0] - self.x
+        dy = seed_pos[1] - self.y
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > 0:
+            self.dx = dx / dist * 2
+            self.dy = dy / dist * 2
+
+    def start_eating(self, seed_pos):
+        """Start the eating animation."""
+        self.is_eating = True
+        self.eating_time = pygame.time.get_ticks()
+        self.dx = 0
+        self.dy = 0
+        self.action_message = "Nom nom nom..."
+        self.target_seed = seed_pos
 
     def draw(self, surface):
-        pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
-        pygame.draw.circle(surface, BLACK, (int(self.x) - 15, int(self.y) - 10), 5)
-        pygame.draw.circle(surface, BLACK, (int(self.x) + 15, int(self.y) - 10), 5)
-        pygame.draw.polygon(surface, (255, 200, 0),
-                          [(int(self.x), int(self.y)),
-                           (int(self.x) + 30, int(self.y) + 10),
-                           (int(self.x), int(self.y) + 20)])
+        """Draw the pigeon with its body, face, and animated legs if moving."""
+        if self.is_eating:
+            # Eating animation
+            bob_offset = math.sin(self.eating_animation_phase) * 5
+            pygame.draw.circle(surface, (150, 150, 150), 
+                             (int(self.x), int(self.y + bob_offset)), 50)
 
-        if self.dx != 0 or self.dy != 0:
-            offset = int(10 * math.sin(self.leg_phase))
-            left_start = (int(self.x) - 15, int(self.y) + 50)
-            left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
-            pygame.draw.line(surface, BLACK, left_start, left_end, 3)
-            right_start = (int(self.x) + 15, int(self.y) + 50)
-            right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
-            pygame.draw.line(surface, BLACK, right_start, right_end, 3)
+            # Draw eyes (blinking during eating)
+            blink = self.eating_animation_phase % 6 < 0.5
+            eye_height = 2 if blink else 5
+            pygame.draw.ellipse(surface, (0, 0, 0), 
+                              (int(self.x) - 15 - 5, int(self.y + bob_offset) - 10 - eye_height//2, 
+                               10, eye_height))
+            pygame.draw.ellipse(surface, (0, 0, 0), 
+                              (int(self.x) + 15 - 5, int(self.y + bob_offset) - 10 - eye_height//2, 
+                               10, eye_height))
 
+            # Animate beak during eating
+            beak_open = math.sin(self.eating_animation_phase * 2) * 10
+            pygame.draw.polygon(surface, (255, 200, 0),
+                              [(int(self.x), int(self.y + bob_offset)),
+                               (int(self.x) + 30, int(self.y + bob_offset) + 10 - beak_open),
+                               (int(self.x), int(self.y + bob_offset) + 20)])
+        else:
+            # Normal drawing
+            pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
+            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) - 15, int(self.y) - 10), 5)
+            pygame.draw.circle(surface, (0, 0, 0), (int(self.x) + 15, int(self.y) - 10), 5)
+            pygame.draw.polygon(surface, (255, 200, 0),
+                              [(int(self.x), int(self.y)),
+                               (int(self.x) + 30, int(self.y) + 10),
+                               (int(self.x), int(self.y) + 20)])
+
+            if self.dx != 0 or self.dy != 0:
+                offset = int(10 * math.sin(self.leg_phase))
+                left_start = (int(self.x) - 15, int(self.y) + 50)
+                left_end = (int(self.x) - 15 + offset, int(self.y) + 70)
+                pygame.draw.line(surface, (0, 0, 0), left_start, left_end, 3)
+                right_start = (int(self.x) + 15, int(self.y) + 50)
+                right_end = (int(self.x) + 15 - offset, int(self.y) + 70)
+                pygame.draw.line(surface, (0, 0, 0), right_start, right_end, 3)
+
+        # Display action message above the pigeon
         font = pygame.font.Font(None, 24)
-        text = font.render(self.action_message, True, BLACK)
+        text = font.render(self.action_message, True, (0, 0, 0))
         surface.blit(text, (int(self.x) - text.get_width() // 2, int(self.y) - 70))
 
     def choose_action(self):
@@ -183,9 +233,11 @@ class Pigeon:
             self.dx = 0
             self.dy = 0
         elif self.action == "eat":
-            self.action_message = "Munching on seeds."
-            self.dx = random.choice([-1, 1])
+            self.action_message = "Looking for seeds..." #Changed message
+            self.dx = 0
             self.dy = 0
+            #Find nearest seed
+            #self.start_eating(nearest_seed_pos) #This line needs more info
         elif self.action == "hop":
             self.action_message = "Hop hop!"
             self.dx = random.choice([-1, 1]) * 2
@@ -207,6 +259,7 @@ class Pigeon:
     def eat_seed(self, seed_pos):
         self.satiety = min(self.satiety + 5, 100)
         self.feeding_effects.append(FeedingEffect(seed_pos[0], seed_pos[1]))
+        self.start_eating(seed_pos)
 
     def update_feeding_effects(self):
         self.feeding_effects = [effect for effect in self.feeding_effects if effect.update()]
@@ -223,3 +276,11 @@ class Pigeon:
         pygame.draw.rect(surface, BLACK, (x - 1, y - 1, meter_width + 2, meter_height + 2), 1)
         fill_width = int(meter_width * (self.satiety / 100))
         pygame.draw.rect(surface, (50, 205, 50), (x, y, fill_width, meter_height))
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+        if self.x - 50 <= 20 or self.x + 50 >= 780:
+            self.dx = -self.dx
+        if self.y - 50 <= 20 or self.y + 50 >= 500:
+            self.dy = -self.dy

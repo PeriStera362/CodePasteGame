@@ -144,9 +144,18 @@ class Game:
             if not seed.falling:
                 dx = seed.x - self.pigeon.x
                 dy = seed.y - self.pigeon.y
-                if dx * dx + dy * dy < 50 * 50:
-                    self.pigeon.eat_seed((seed.x, seed.y))
-                    self.seeds.remove(seed)
+                distance = dx * dx + dy * dy
+
+                # If pigeon is close enough to eat
+                if distance < 50 * 50:
+                    if not self.pigeon.is_eating:
+                        self.pigeon.start_eating((seed.x, seed.y))
+                    elif pygame.time.get_ticks() - self.pigeon.eating_time >= self.pigeon.eating_duration:
+                        self.pigeon.eat_seed((seed.x, seed.y))
+                        self.seeds.remove(seed) #Corrected seeds to self.seeds
+                # If seed is visible and not too far, move towards it
+                elif distance < 200 * 200 and not self.pigeon.is_eating:
+                    self.pigeon.move_towards_seed((seed.x, seed.y))
 
     def draw(self):
         """Render game state."""
