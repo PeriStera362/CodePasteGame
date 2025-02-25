@@ -103,6 +103,47 @@ class SeedParticle:
         else:
             pygame.draw.polygon(surface, SEED_COLOR, points)
 
+class Ball:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.dx = random.uniform(-3, 3)
+        self.dy = random.uniform(-3, 3)
+        self.radius = 10
+        self.color = (255, 0, 0)  # Red ball
+        self.being_pushed = False
+        self.push_timer = 0
+        self.push_duration = 2000  # 2 seconds of pushing
+
+    def update(self, width, height, wall_thickness):
+        """Update ball position and handle bouncing."""
+        self.x += self.dx
+        self.y += self.dy
+
+        # Bounce off walls
+        if self.x - self.radius <= wall_thickness:
+            self.x = wall_thickness + self.radius
+            self.dx = abs(self.dx)
+        elif self.x + self.radius >= width - wall_thickness:
+            self.x = width - wall_thickness - self.radius
+            self.dx = -abs(self.dx)
+
+        if self.y - self.radius <= wall_thickness:
+            self.y = wall_thickness + self.radius
+            self.dy = abs(self.dy)
+        elif self.y + self.radius >= height - wall_thickness:
+            self.y = height - wall_thickness - self.radius
+            self.dy = -abs(self.dy)
+
+        # Apply slight friction
+        self.dx *= 0.99
+        self.dy *= 0.99
+
+    def draw(self, surface):
+        """Draw the ball."""
+        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+
+
 class Pigeon:
     def __init__(self, x, y):
         self.x = x
@@ -133,6 +174,10 @@ class Pigeon:
         self.pet_time = 0
         self.pet_duration = 1000  # 1 second of happy animation
         self.pet_animation_phase = 0
+        self.playing_with_ball = False
+        self.play_start_time = 0
+        self.play_duration = 5000  # 5 seconds of playing
+        self.target_ball = None
 
     def start_petting(self):
         """Start the petting animation."""
@@ -170,6 +215,16 @@ class Pigeon:
             if now - self.eating_time >= self.eating_duration:
                 self.finish_eating()
             return  # Don't move while eating
+
+        # Handle playing state
+        if self.playing_with_ball:
+            if now - self.play_start_time >= self.play_duration:
+                self.playing_with_ball = False
+                self.target_ball = None
+                self.action_message = "That was fun!"
+            elif self.target_ball:
+                self.chase_ball(self.target_ball)
+
 
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
@@ -333,7 +388,6 @@ class Pigeon:
         self.start_eating(seed_pos)
         seed_object.being_eaten = True #Added line to initiate fade-out
 
-
     def update_feeding_effects(self):
         self.feeding_effects = [effect for effect in self.feeding_effects if effect.update()]
 
@@ -357,3 +411,33 @@ class Pigeon:
             self.dx = -self.dx
         if self.y - 50 <= 20 or self.y + 50 >= 500:
             self.dy = -self.dy
+
+    def start_playing(self, ball):
+        """Start playing with a ball."""
+        self.playing_with_ball = True
+        self.play_start_time = pygame.time.get_ticks()
+        self.target_ball = ball
+        self.action_message = "Time to play!"
+
+    def chase_ball(self, ball):
+        """Chase the ball and push it when close."""
+        if not self.playing_with_ball:
+            return
+
+        dx = ball.x - self.x
+        dy = ball.y - self.y
+        dist = (dx * dx + dy * dy) ** 0.5
+
+        if dist > 0:
+            # Move towards ball
+            speed = 3
+            self.dx = (dx / dist) * speed
+            self.dy = (dy / dist) * speed
+
+            # If close enough, push the ball
+            if dist < 60:
+                push_force = 5
+                ball.dx = (dx / dist) * push_force
+                ball.dy = (dy / dist) * push_force
+                ball.being_pushed = True
+                ball.push_timer = pygame.time.get_ticks()

@@ -1,6 +1,6 @@
 import pygame
 import random
-from classes import Pigeon, Sparkle, SeedParticle
+from classes import Pigeon, Sparkle, SeedParticle, Ball # Added Ball import
 from utils import (
     draw_stat_bars, display_messages, draw_room, draw_cloth,
     draw_vacuum, draw_feed_cursor, draw_progress_bar, update_combo,
@@ -29,6 +29,8 @@ class Game:
         self.last_clean_time = 0
 
         # UI elements
+        self.play_button = pygame.Rect(500, 500, 100, 50)  # Add new play button
+        self.ball = None  # Initialize ball as None
         self.setup_ui()
 
         # Game modes
@@ -45,6 +47,7 @@ class Game:
         self.vacuum_button = pygame.Rect(50, 500, 100, 50)
         self.cloth_button = pygame.Rect(200, 500, 100, 50)
         self.feed_button = pygame.Rect(350, 500, 100, 50)
+        self.play_button = pygame.Rect(500, 500, 100, 50)  # Add play button
 
     def handle_input(self):
         """Process user input events."""
@@ -56,7 +59,12 @@ class Game:
 
     def handle_click(self, pos):
         """Handle mouse click events."""
-        if self.feed_button.collidepoint(pos):
+        if self.play_button.collidepoint(pos):
+            # Create new ball if none exists
+            if not self.ball:
+                self.ball = Ball(WIDTH // 2, HEIGHT // 2)
+                self.pigeon.start_playing(self.ball)
+        elif self.feed_button.collidepoint(pos):
             self.feed_mode = True
             self.cloth_mode = False
             self.vacuum_mode = False
@@ -157,6 +165,14 @@ class Game:
                 elif distance < 200 * 200 and not self.pigeon.is_eating:
                     self.pigeon.move_towards_seed((seed.x, seed.y))
 
+        # Update ball if it exists
+        if self.ball:
+            self.ball.update(WIDTH, HEIGHT, WALL_THICKNESS)
+            # Remove ball if it's been pushed for long enough
+            if self.ball.being_pushed and pygame.time.get_ticks() - self.ball.push_timer >= self.ball.push_duration:
+                self.ball = None
+
+
     def draw(self):
         """Render game state."""
         # Draw background
@@ -184,13 +200,18 @@ class Game:
         self.pigeon.draw_satiety_meter(self.screen)
         self.pigeon.draw_feeding_effects(self.screen)
 
+        # Draw ball if it exists
+        if self.ball:
+            self.ball.draw(self.screen)
+
     def draw_ui(self):
         """Draw UI elements."""
         # Draw buttons
         for button, label in [
             (self.vacuum_button, "Vacuum"),
             (self.cloth_button, "Cloth"),
-            (self.feed_button, "Feed")
+            (self.feed_button, "Feed"),
+            (self.play_button, "Play")  # Add play button
         ]:
             pygame.draw.rect(self.screen, GRAY, button)
             text = self.font.render(label, True, BLACK)
