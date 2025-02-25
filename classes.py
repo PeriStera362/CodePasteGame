@@ -33,8 +33,8 @@ class FeedingEffect:
             alpha = int(255 * self.life)
             s = pygame.Surface((int(particle['size'] * 2), int(particle['size'] * 2)), pygame.SRCALPHA)
             pygame.draw.circle(s, (218, 165, 32, alpha),
-                            (int(particle['size']), int(particle['size'])),
-                            int(particle['size']))
+                                (int(particle['size']), int(particle['size'])),
+                                int(particle['size']))
             surface.blit(s, (int(x - particle['size']), int(y - particle['size'])))
 
 class Sparkle:
@@ -157,8 +157,8 @@ class Ball:
         # Draw shadow
         shadow_offset = 4
         pygame.draw.circle(surface, (100, 100, 100), 
-                         (int(self.x + shadow_offset), int(self.y + shadow_offset)), 
-                         self.radius)
+                             (int(self.x + shadow_offset), int(self.y + shadow_offset)), 
+                             self.radius)
         # Draw ball
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
         # Draw highlight
@@ -212,10 +212,10 @@ class Pigeon:
 
         # Only update stats if not eating
         if not self.is_eating:
-            self.hunger = min(100, self.hunger + 0.1)
-            self.energy = max(0, self.energy - 0.05)
-            self.cleanliness = max(0, self.cleanliness - 0.1)
-            self.happiness = max(0, self.happiness - 0.05)  # Gradual decrease in happiness
+            self.hunger = min(100, self.hunger + 0.02)  # Reduced from 0.1
+            self.energy = max(0, self.energy - 0.01)    # Reduced from 0.05
+            self.cleanliness = max(0, self.cleanliness - 0.015)  # Reduced from 0.1
+            self.happiness = max(0, self.happiness - 0.01)  # Reduced from 0.05
             self.happiness = min(100, (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4)
 
         self.update_feeding_effects()
@@ -286,21 +286,21 @@ class Pigeon:
             # Eating animation
             bob_offset = math.sin(self.eating_animation_phase) * 5
             pygame.draw.circle(surface, (150, 150, 150), 
-                             (int(self.x), int(self.y + bob_offset)), 50)
+                                 (int(self.x), int(self.y + bob_offset)), 50)
 
             # Animate beak during eating
             beak_open = math.sin(self.eating_animation_phase * 2) * 10
             pygame.draw.polygon(surface, (255, 200, 0),
-                              [(int(self.x), int(self.y + bob_offset)),
-                               (int(self.x) + 30, int(self.y + bob_offset) + 10 - beak_open),
-                               (int(self.x), int(self.y + bob_offset) + 20)])
+                                  [(int(self.x), int(self.y + bob_offset)),
+                                   (int(self.x) + 30, int(self.y + bob_offset) + 10 - beak_open),
+                                   (int(self.x), int(self.y + bob_offset) + 20)])
         else:
             # Normal drawing
             pygame.draw.circle(surface, (150, 150, 150), (int(self.x), int(self.y)), 50)
             pygame.draw.polygon(surface, (255, 200, 0),
-                              [(int(self.x), int(self.y)),
-                               (int(self.x) + 30, int(self.y) + 10),
-                               (int(self.x), int(self.y) + 20)])
+                                  [(int(self.x), int(self.y)),
+                                   (int(self.x) + 30, int(self.y) + 10),
+                                   (int(self.x), int(self.y) + 20)])
 
         # Draw eyes based on state
         if self.being_petted:
