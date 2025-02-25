@@ -114,48 +114,30 @@ class Ball:
         self.being_pushed = False
         self.push_timer = 0
         self.push_duration = 2000  # 2 seconds of pushing
-        self.center_force = 0.05  # Force pulling ball towards center
 
     def update(self, width, height, wall_thickness):
         """Update ball position and handle bouncing."""
         self.x += self.dx
         self.y += self.dy
 
-        # Add center-seeking behavior
-        center_x = width / 2
-        center_y = height / 2
-        dx_to_center = center_x - self.x
-        dy_to_center = center_y - self.y
-        dist_to_center = (dx_to_center ** 2 + dy_to_center ** 2) ** 0.5
-
-        if dist_to_center > 100:  # Only apply when far from center
-            self.dx += (dx_to_center / dist_to_center) * self.center_force
-            self.dy += (dy_to_center / dist_to_center) * self.center_force
-
-        # Bounce off walls with energy preservation
+        # Bounce off walls
         if self.x - self.radius <= wall_thickness:
             self.x = wall_thickness + self.radius
-            self.dx = abs(self.dx) * 0.9  # Preserve 90% of energy
+            self.dx = abs(self.dx)
         elif self.x + self.radius >= width - wall_thickness:
             self.x = width - wall_thickness - self.radius
-            self.dx = -abs(self.dx) * 0.9
+            self.dx = -abs(self.dx)
 
         if self.y - self.radius <= wall_thickness:
             self.y = wall_thickness + self.radius
-            self.dy = abs(self.dy) * 0.9
+            self.dy = abs(self.dy)
         elif self.y + self.radius >= height - wall_thickness:
             self.y = height - wall_thickness - self.radius
-            self.dy = -abs(self.dy) * 0.9
+            self.dy = -abs(self.dy)
 
         # Apply slight friction
-        self.dx *= 0.995  # Reduced friction for longer play
-        self.dy *= 0.995
-
-        # Cap maximum speed
-        speed = (self.dx ** 2 + self.dy ** 2) ** 0.5
-        if speed > 8:
-            self.dx = (self.dx / speed) * 8
-            self.dy = (self.dy / speed) * 8
+        self.dx *= 0.99
+        self.dy *= 0.99
 
     def draw(self, surface):
         """Draw the ball."""
@@ -454,31 +436,8 @@ class Pigeon:
 
             # If close enough, push the ball
             if dist < 60:
-                # Calculate push direction
-                push_force = 4  # Reduced from 5
-
-                # Add slight randomness to push direction for more dynamic play
-                angle_offset = random.uniform(-0.2, 0.2)
-                push_dx = dx/dist * math.cos(angle_offset) - dy/dist * math.sin(angle_offset)
-                push_dy = dx/dist * math.sin(angle_offset) + dy/dist * math.cos(angle_offset)
-
-                ball.dx = push_dx * push_force
-                ball.dy = push_dy * push_force
+                push_force = 5
+                ball.dx = (dx / dist) * push_force
+                ball.dy = (dy / dist) * push_force
                 ball.being_pushed = True
                 ball.push_timer = pygame.time.get_ticks()
-
-                # Give pigeon slight backward momentum to prevent sticking
-                self.dx = -push_dx * 1.5
-                self.dy = -push_dy * 1.5
-
-            # If too close to wall, move away slightly
-            if (self.x < 70 or self.x > 730 or self.y < 70 or self.y > 530):
-                center_x = 400
-                center_y = 300
-                dx_to_center = center_x - self.x
-                dy_to_center = center_y - self.y
-                dist_to_center = (dx_to_center ** 2 + dy_to_center ** 2) ** 0.5
-
-                if dist_to_center > 0:
-                    self.dx += (dx_to_center / dist_to_center) * 0.5
-                    self.dy += (dy_to_center / dist_to_center) * 0.5
