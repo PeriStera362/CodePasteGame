@@ -114,34 +114,50 @@ class Ball:
         self.being_pushed = False
         self.push_timer = 0
         self.push_duration = 2000  # 2 seconds of pushing
+        self.push_decay = 0.95  # Decay rate for push force
 
     def update(self, width, height, wall_thickness):
         """Update ball position and handle bouncing."""
+        # Update position
         self.x += self.dx
         self.y += self.dy
 
-        # Bounce off walls
+        # Bounce off walls with energy loss
+        bounce_damping = 0.8  # Reduce velocity on bounce
         if self.x - self.radius <= wall_thickness:
             self.x = wall_thickness + self.radius
-            self.dx = abs(self.dx)
+            self.dx = abs(self.dx) * bounce_damping
         elif self.x + self.radius >= width - wall_thickness:
             self.x = width - wall_thickness - self.radius
-            self.dx = -abs(self.dx)
+            self.dx = -abs(self.dx) * bounce_damping
 
         if self.y - self.radius <= wall_thickness:
             self.y = wall_thickness + self.radius
-            self.dy = abs(self.dy)
+            self.dy = abs(self.dy) * bounce_damping
         elif self.y + self.radius >= height - wall_thickness:
             self.y = height - wall_thickness - self.radius
-            self.dy = -abs(self.dy)
+            self.dy = -abs(self.dy) * bounce_damping
 
-        # Apply slight friction
+        # Apply friction
         self.dx *= 0.99
         self.dy *= 0.99
 
+        # Stop very slow movement
+        if abs(self.dx) < 0.1: self.dx = 0
+        if abs(self.dy) < 0.1: self.dy = 0
+
     def draw(self, surface):
-        """Draw the ball."""
+        """Draw the ball with shadow effect."""
+        # Draw shadow
+        shadow_offset = 4
+        pygame.draw.circle(surface, (100, 100, 100), 
+                         (int(self.x + shadow_offset), int(self.y + shadow_offset)), 
+                         self.radius)
+        # Draw ball
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+        # Draw highlight
+        highlight_pos = (int(self.x - self.radius/3), int(self.y - self.radius/3))
+        pygame.draw.circle(surface, (255, 200, 200), highlight_pos, 3)
 
 
 class Pigeon:
@@ -436,8 +452,29 @@ class Pigeon:
 
             # If close enough, push the ball
             if dist < 60:
-                push_force = 5
-                ball.dx = (dx / dist) * push_force
-                ball.dy = (dy / dist) * push_force
+                # Calculate push vector
+                push_force = 8
+                push_angle = math.atan2(dy, dx)
+
+                # Add some randomness to push direction
+                push_angle += random.uniform(-0.5, 0.5)
+
+                # Apply push force to ball
+                ball.dx = math.cos(push_angle) * push_force
+                ball.dy = math.sin(push_angle) * push_force
+
+                # Apply recoil to pigeon
+                recoil = 2
+                self.dx = -math.cos(push_angle) * recoil
+                self.dy = -math.sin(push_angle) * recoil
+
                 ball.being_pushed = True
                 ball.push_timer = pygame.time.get_ticks()
+
+                # Add some "playful" randomness to pigeon's next move
+                self.action_message = random.choice([
+                    "Boop!", 
+                    "Play with me!",
+                    "This is fun!",
+                    "Chase the ball!"
+                ])

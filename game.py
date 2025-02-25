@@ -168,9 +168,23 @@ class Game:
         # Update ball if it exists
         if self.ball:
             self.ball.update(WIDTH, HEIGHT, WALL_THICKNESS)
-            # Remove ball if it's been pushed for long enough
-            if self.ball.being_pushed and pygame.time.get_ticks() - self.ball.push_timer >= self.ball.push_duration:
-                self.ball = None
+
+            # Check if ball should be removed
+            if self.ball.being_pushed:
+                current_time = pygame.time.get_ticks()
+                if current_time - self.ball.push_timer >= self.ball.push_duration:
+                    # Only remove if ball is near the edge
+                    edge_margin = 50
+                    near_edge = (
+                        self.ball.x <= WALL_THICKNESS + edge_margin or
+                        self.ball.x >= WIDTH - WALL_THICKNESS - edge_margin or
+                        self.ball.y <= WALL_THICKNESS + edge_margin or
+                        self.ball.y >= HEIGHT - WALL_THICKNESS - edge_margin
+                    )
+                    if near_edge:
+                        self.ball = None
+                        self.pigeon.playing_with_ball = False
+                        self.pigeon.action_message = "That was fun!"
 
 
     def draw(self):
