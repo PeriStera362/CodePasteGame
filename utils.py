@@ -21,8 +21,9 @@ def draw_status_bars(screen, pigeon):
     bar_width = 200
     bar_height = 20
     bar_spacing = 50
-    start_x = 20
-    start_y = 20
+    total_width = (bar_width * 3) + (bar_spacing * 2)
+    start_x = (screen.get_width() - total_width) // 2
+    start_y = 20  # Fixed position at top
 
     # Calculate hygiene based on mess
     total_mess = len(pigeon.dander) + len(pigeon.droppings)
@@ -49,7 +50,8 @@ def draw_status_bars(screen, pigeon):
         # Draw label
         font = pygame.font.Font(None, 24)
         text = font.render(stat_name.capitalize(), True, BLACK)
-        screen.blit(text, (x, start_y + bar_height + 5))
+        text_rect = text.get_rect(centerx=x + bar_width//2, top=start_y - 25)
+        screen.blit(text, text_rect)
 
 def draw_cloth(surface, pos, cleaning):
     """Draw cloth cleaning cursor."""
@@ -87,15 +89,15 @@ def draw_feed_cursor(surface, pos):
     ]
     for dx, dy in seed_positions:
         pygame.draw.circle(surface, SEED_COLOR,
-                        (pos[0] + dx, pos[1] + dy), cursor_radius)
+                         (pos[0] + dx, pos[1] + dy), cursor_radius)
 
-def draw_room(surface, width, height, wall_thickness):
+def draw_room(surface, width, height, wall_thickness, room_top):
     """Draw the game room with floor and walls."""
-    surface.fill(FLOOR_COLOR)
-    pygame.draw.rect(surface, WALL_COLOR, (0, 0, width, wall_thickness))
-    pygame.draw.rect(surface, WALL_COLOR, (0, 0, wall_thickness, height))
-    pygame.draw.rect(surface, WALL_COLOR, (0, height - wall_thickness, width, wall_thickness))
-    pygame.draw.rect(surface, WALL_COLOR, (width - wall_thickness, 0, wall_thickness, height))
+    # Draw walls
+    pygame.draw.rect(surface, WALL_COLOR, (0, room_top, width, wall_thickness))  # Top wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, room_top, wall_thickness, height))  # Left wall
+    pygame.draw.rect(surface, WALL_COLOR, (0, room_top + height - wall_thickness, width, wall_thickness))  # Bottom wall
+    pygame.draw.rect(surface, WALL_COLOR, (width - wall_thickness, room_top, wall_thickness, height))  # Right wall
 
 def display_messages(screen, messages, max_messages=5):
     """Display game messages on screen."""

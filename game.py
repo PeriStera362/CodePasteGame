@@ -8,23 +8,25 @@ from utils import (
 )
 
 # Game Constants
-WIDTH = 800
-HEIGHT = 600
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 700  # Increased to accommodate UI
+ROOM_TOP = 80       # Room starts below status bars
+ROOM_BOTTOM = 600   # Room ends above buttons
 WALL_THICKNESS = 20
 
 class Game:
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption("Pigeon Simulator")
         self.clock = pygame.time.Clock()
 
         # Game objects
-        self.pigeon = Pigeon(WIDTH // 2, HEIGHT // 2)
+        self.pigeon = Pigeon(WINDOW_WIDTH // 2, (ROOM_TOP + ROOM_BOTTOM) // 2)
         self.messages = []
         self.sparkles = []
         self.seeds = []
-        self.ball = None  # Initialize ball as None
+        self.ball = None
 
         # UI elements
         self.setup_ui()
@@ -35,14 +37,22 @@ class Game:
         self.feed_mode = False
 
         self.running = True
+        self.last_clean_time = 0
+        self.cleaning_score = 0
+        self.combo_multiplier = 1.0
 
     def setup_ui(self):
         """Initialize UI elements."""
         self.font = pygame.font.SysFont(None, 24)
-        self.vacuum_button = pygame.Rect(50, 500, 100, 50)
-        self.cloth_button = pygame.Rect(200, 500, 100, 50)
-        self.feed_button = pygame.Rect(350, 500, 100, 50)
-        self.play_button = pygame.Rect(500, 500, 100, 50)
+        button_y = ROOM_BOTTOM + 20  # Place buttons below room
+        button_width = 100
+        button_spacing = 30
+        start_x = (WINDOW_WIDTH - (4 * button_width + 3 * button_spacing)) // 2
+
+        self.vacuum_button = pygame.Rect(start_x, button_y, button_width, 50)
+        self.cloth_button = pygame.Rect(start_x + button_width + button_spacing, button_y, button_width, 50)
+        self.feed_button = pygame.Rect(start_x + 2 * (button_width + button_spacing), button_y, button_width, 50)
+        self.play_button = pygame.Rect(start_x + 3 * (button_width + button_spacing), button_y, button_width, 50)
 
     def handle_input(self):
         """Process user input events."""
@@ -56,7 +66,7 @@ class Game:
         """Handle mouse click events."""
         if self.play_button.collidepoint(pos):
             if not self.ball or not self.pigeon.playing_with_ball:
-                self.ball = Ball(WIDTH // 2, HEIGHT // 2)
+                self.ball = Ball(WINDOW_WIDTH // 2, (ROOM_TOP + ROOM_BOTTOM) // 2)
                 self.pigeon.start_playing(self.ball)
         elif self.feed_button.collidepoint(pos):
             self.feed_mode = True
@@ -161,15 +171,15 @@ class Game:
 
         # Update ball if it exists
         if self.ball:
-            self.ball.update(WIDTH, HEIGHT, WALL_THICKNESS)
+            self.ball.update(WINDOW_WIDTH, WINDOW_HEIGHT, WALL_THICKNESS)
 
             # Check if ball should be removed
             edge_margin = 50
             near_edge = (
                 self.ball.x <= WALL_THICKNESS + edge_margin or
-                self.ball.x >= WIDTH - WALL_THICKNESS - edge_margin or
-                self.ball.y <= WALL_THICKNESS + edge_margin or
-                self.ball.y >= HEIGHT - WALL_THICKNESS - edge_margin
+                self.ball.x >= WINDOW_WIDTH - WALL_THICKNESS - edge_margin or
+                self.ball.y <= ROOM_TOP + edge_margin or #Corrected y-coordinate check
+                self.ball.y >= ROOM_BOTTOM - WALL_THICKNESS - edge_margin
             )
 
             # Only remove if ball has been pushed and is near edge
@@ -180,15 +190,22 @@ class Game:
 
     def draw(self):
         """Render game state."""
-        # Draw background
-        draw_room(self.screen, WIDTH, HEIGHT, WALL_THICKNESS)
+        # Fill background
+        self.screen.fill((200, 200, 200))  # Light gray background
+
+        # Draw room background
+        pygame.draw.rect(self.screen, FLOOR_COLOR, 
+                        (0, ROOM_TOP, WINDOW_WIDTH, ROOM_BOTTOM - ROOM_TOP))
+
+        # Draw room walls
+        draw_room(self.screen, WINDOW_WIDTH, ROOM_BOTTOM - ROOM_TOP, WALL_THICKNESS, ROOM_TOP)
+
+        # Draw status bars (at the top)
+        draw_status_bars(self.screen, self.pigeon)
 
         # Draw game objects
         self.draw_game_objects()
         self.draw_ui()
-
-        # Draw status bars
-        draw_status_bars(self.screen, self.pigeon)
 
         # Update display
         pygame.display.flip()
@@ -221,7 +238,8 @@ class Game:
         ]:
             pygame.draw.rect(self.screen, GRAY, button)
             text = self.font.render(label, True, BLACK)
-            self.screen.blit(text, (button.x + 10, button.y + 15))
+            text_rect = text.get_rect(center=button.center)
+            self.screen.blit(text, text_rect)
 
         # Draw mode-specific cursors
         mouse_pos = pygame.mouse.get_pos()
