@@ -146,6 +146,12 @@ class Ball:
         if abs(self.dx) < 0.1: self.dx = 0
         if abs(self.dy) < 0.1: self.dy = 0
 
+        # Check if we should still be in "pushed" state
+        if self.being_pushed:
+            current_time = pygame.time.get_ticks()
+            if current_time - self.push_timer >= self.push_duration:
+                self.being_pushed = False
+
     def draw(self, surface):
         """Draw the ball with shadow effect."""
         # Draw shadow

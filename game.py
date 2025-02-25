@@ -60,8 +60,7 @@ class Game:
     def handle_click(self, pos):
         """Handle mouse click events."""
         if self.play_button.collidepoint(pos):
-            # Create new ball if none exists
-            if not self.ball:
+            if not self.ball or not self.pigeon.playing_with_ball:
                 self.ball = Ball(WIDTH // 2, HEIGHT // 2)
                 self.pigeon.start_playing(self.ball)
         elif self.feed_button.collidepoint(pos):
@@ -170,22 +169,19 @@ class Game:
             self.ball.update(WIDTH, HEIGHT, WALL_THICKNESS)
 
             # Check if ball should be removed
-            if self.ball.being_pushed:
-                current_time = pygame.time.get_ticks()
-                if current_time - self.ball.push_timer >= self.ball.push_duration:
-                    # Only remove if ball is near the edge
-                    edge_margin = 50
-                    near_edge = (
-                        self.ball.x <= WALL_THICKNESS + edge_margin or
-                        self.ball.x >= WIDTH - WALL_THICKNESS - edge_margin or
-                        self.ball.y <= WALL_THICKNESS + edge_margin or
-                        self.ball.y >= HEIGHT - WALL_THICKNESS - edge_margin
-                    )
-                    if near_edge:
-                        self.ball = None
-                        self.pigeon.playing_with_ball = False
-                        self.pigeon.action_message = "That was fun!"
+            edge_margin = 50
+            near_edge = (
+                self.ball.x <= WALL_THICKNESS + edge_margin or
+                self.ball.x >= WIDTH - WALL_THICKNESS - edge_margin or
+                self.ball.y <= WALL_THICKNESS + edge_margin or
+                self.ball.y >= HEIGHT - WALL_THICKNESS - edge_margin
+            )
 
+            # Only remove if ball has been pushed and is near edge
+            if not self.ball.being_pushed and near_edge and self.pigeon.playing_with_ball:
+                self.ball = None
+                self.pigeon.playing_with_ball = False
+                self.pigeon.action_message = "That was fun!"
 
     def draw(self):
         """Render game state."""
