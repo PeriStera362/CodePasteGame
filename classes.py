@@ -181,14 +181,13 @@ class Pigeon:
         self.action_message = "Just chilling..."
         self.last_action_time = pygame.time.get_ticks()
         self.leg_phase = 0
-        self.satiety = 50
         self.feeding_effects = []
         self.dander = []
         self.droppings = []
         # Eating-related attributes
         self.is_eating = False
         self.eating_time = 0
-        self.eating_duration = 800
+        self.eating_duration = 800  # 0.8 seconds per seed
         self.eating_animation_phase = 0
         self.target_seed = None
         # Petting-related attributes
@@ -201,15 +200,6 @@ class Pigeon:
         self.play_duration = 5000  # 5 seconds of playing
         self.target_ball = None
 
-    def start_petting(self):
-        """Start the petting animation."""
-        self.being_petted = True
-        self.pet_time = pygame.time.get_ticks()
-        self.pet_animation_phase = 0
-        self.action_message = "Coo! Thanks for the pet!"
-        # Increase happiness when petted
-        self.happiness = min(100, self.happiness + 10)
-
     def update(self):
         now = pygame.time.get_ticks()
 
@@ -220,15 +210,13 @@ class Pigeon:
                 self.being_petted = False
                 self.pet_animation_phase = 0
 
-        # Only update satiety and stats if not eating
+        # Only update stats if not eating
         if not self.is_eating:
-            self.satiety = max(0, self.satiety - 0.02)
-            # Update core stats only when not eating
             self.hunger = min(100, self.hunger + 0.1)
             self.energy = max(0, self.energy - 0.05)
             self.cleanliness = max(0, self.cleanliness - 0.1)
             self.happiness = max(0, self.happiness - 0.05)  # Gradual decrease in happiness
-            self.happiness = (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4
+            self.happiness = min(100, (self.health + (100 - self.hunger) + self.cleanliness + self.energy) / 4)
 
         self.update_feeding_effects()
 
@@ -246,7 +234,6 @@ class Pigeon:
                 self.action_message = "That was fun!"
             elif self.target_ball:
                 self.chase_ball(self.target_ball)
-
 
         if self.dx != 0 or self.dy != 0:
             self.leg_phase += 0.2
@@ -405,7 +392,7 @@ class Pigeon:
         self.droppings.append((x, y))
 
     def eat_seed(self, seed_pos, seed_object): #Added seed_object parameter
-        self.satiety = min(self.satiety + 5, 100)
+        self.hunger = max(0, self.hunger - 10)  # Reduce hunger
         self.feeding_effects.append(FeedingEffect(seed_pos[0], seed_pos[1]))
         self.start_eating(seed_pos)
         seed_object.being_eaten = True #Added line to initiate fade-out
@@ -417,14 +404,6 @@ class Pigeon:
         for effect in self.feeding_effects:
             effect.draw(surface)
 
-    def draw_satiety_meter(self, surface):
-        meter_width = 60
-        meter_height = 8
-        x = self.x - meter_width // 2
-        y = self.y - 80
-        pygame.draw.rect(surface, BLACK, (x - 1, y - 1, meter_width + 2, meter_height + 2), 1)
-        fill_width = int(meter_width * (self.satiety / 100))
-        pygame.draw.rect(surface, (50, 205, 50), (x, y, fill_width, meter_height))
 
     def move(self):
         self.x += self.dx
@@ -440,6 +419,15 @@ class Pigeon:
         self.play_start_time = pygame.time.get_ticks()
         self.target_ball = ball
         self.action_message = "Time to play!"
+        self.happiness = min(100, self.happiness + 15)  # Increase happiness when playing
+
+    def start_petting(self):
+        """Start the petting animation."""
+        self.being_petted = True
+        self.pet_time = pygame.time.get_ticks()
+        self.pet_animation_phase = 0
+        self.action_message = "Coo! Thanks for the pet!"
+        self.happiness = min(100, self.happiness + 10)  # Increase happiness when petted
 
     def chase_ball(self, ball):
         """Chase the ball and push it when close."""

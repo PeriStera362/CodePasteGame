@@ -1,9 +1,9 @@
 import pygame
 import random
-from classes import Pigeon, Sparkle, SeedParticle, Ball # Added Ball import
+from classes import Pigeon, Sparkle, SeedParticle, Ball
 from utils import (
-    draw_stat_bars, display_messages, draw_room, draw_cloth,
-    draw_vacuum, draw_feed_cursor, draw_progress_bar, update_combo,
+    draw_status_bars, draw_room, draw_cloth,
+    draw_vacuum, draw_feed_cursor,
     FLOOR_COLOR, WALL_COLOR, BLACK, GRAY, DANDER_COLOR, DROPPING_COLOR
 )
 
@@ -24,13 +24,9 @@ class Game:
         self.messages = []
         self.sparkles = []
         self.seeds = []
-        self.cleaning_score = 0
-        self.combo_multiplier = 1
-        self.last_clean_time = 0
+        self.ball = None  # Initialize ball as None
 
         # UI elements
-        self.play_button = pygame.Rect(500, 500, 100, 50)  # Add new play button
-        self.ball = None  # Initialize ball as None
         self.setup_ui()
 
         # Game modes
@@ -43,11 +39,10 @@ class Game:
     def setup_ui(self):
         """Initialize UI elements."""
         self.font = pygame.font.SysFont(None, 24)
-        self.score_font = pygame.font.SysFont(None, 36)
         self.vacuum_button = pygame.Rect(50, 500, 100, 50)
         self.cloth_button = pygame.Rect(200, 500, 100, 50)
         self.feed_button = pygame.Rect(350, 500, 100, 50)
-        self.play_button = pygame.Rect(500, 500, 100, 50)  # Add play button
+        self.play_button = pygame.Rect(500, 500, 100, 50)
 
     def handle_input(self):
         """Process user input events."""
@@ -192,6 +187,9 @@ class Game:
         self.draw_game_objects()
         self.draw_ui()
 
+        # Draw status bars
+        draw_status_bars(self.screen, self.pigeon)
+
         # Update display
         pygame.display.flip()
 
@@ -207,10 +205,8 @@ class Game:
             seed.draw(self.screen)
 
         self.pigeon.draw(self.screen)
-        self.pigeon.draw_satiety_meter(self.screen)
         self.pigeon.draw_feeding_effects(self.screen)
 
-        # Draw ball if it exists
         if self.ball:
             self.ball.draw(self.screen)
 
@@ -221,23 +217,11 @@ class Game:
             (self.vacuum_button, "Vacuum"),
             (self.cloth_button, "Cloth"),
             (self.feed_button, "Feed"),
-            (self.play_button, "Play")  # Add play button
+            (self.play_button, "Play")
         ]:
             pygame.draw.rect(self.screen, GRAY, button)
             text = self.font.render(label, True, BLACK)
             self.screen.blit(text, (button.x + 10, button.y + 15))
-
-        # Draw score and combo
-        score_text = self.score_font.render(f"Score: {self.cleaning_score}", True, BLACK)
-        combo_text = self.font.render(f"Combo: x{self.combo_multiplier:.1f}", True, BLACK)
-        self.screen.blit(score_text, (WIDTH - 200, 20))
-        self.screen.blit(combo_text, (WIDTH - 200, 60))
-
-        # Draw cleanliness bar
-        total_mess = len(self.pigeon.dander) + len(self.pigeon.droppings)
-        if total_mess > 0:
-            cleanliness = 1 - (total_mess / 50)
-            draw_progress_bar(self.screen, 50, 20, 200, 20, cleanliness, (0, 255, 0))
 
         # Draw mode-specific cursors
         mouse_pos = pygame.mouse.get_pos()

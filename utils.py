@@ -10,38 +10,46 @@ DROPPING_COLOR = (139, 69, 19)
 SEED_COLOR = (218, 165, 32)
 VACUUM_COLOR = (100, 100, 100)
 
-def draw_stat_bars(screen, pigeon):
-    """Draw status bars for pigeon's attributes."""
+def draw_status_bars(screen, pigeon):
+    """Draw status bars at the top of the screen."""
     colors = {
-        'health': (255, 0, 0),      # Red
-        'happiness': (255, 255, 0),  # Yellow
-        'hunger': (0, 255, 0),      # Green
-        'cleanliness': (0, 255, 255),# Cyan
-        'energy': (255, 165, 0)      # Orange
+        'hygiene': (0, 255, 255),    # Cyan
+        'hunger': (50, 205, 50),     # Green
+        'happiness': (255, 215, 0)    # Gold
     }
 
+    bar_width = 200
     bar_height = 20
-    bar_spacing = 25
+    bar_spacing = 50
+    start_x = 20
+    start_y = 20
+
+    # Calculate hygiene based on mess
+    total_mess = len(pigeon.dander) + len(pigeon.droppings)
+    hygiene = max(0, 100 - (total_mess * 2))  # Each mess reduces hygiene by 2%
+
+    values = {
+        'hygiene': hygiene,
+        'hunger': 100 - pigeon.hunger,  # Invert hunger so full bar means not hungry
+        'happiness': pigeon.happiness
+    }
+
     for i, (stat_name, color) in enumerate(colors.items()):
-        stat_value = getattr(pigeon, stat_name)
-        if stat_name == 'hunger':
-            stat_value = 100 - stat_value  # Invert hunger so full bar means not hungry
-
+        x = start_x + (bar_width + bar_spacing) * i
+        # Draw background (gray) bar
         pygame.draw.rect(screen, (128, 128, 128), 
-                        (10, 10 + i * bar_spacing, 100, bar_height))
+                        (x, start_y, bar_width, bar_height))
+        # Draw filled portion
+        fill_width = int(bar_width * (values[stat_name] / 100))
         pygame.draw.rect(screen, color,
-                        (10, 10 + i * bar_spacing, stat_value, bar_height))
-
+                        (x, start_y, fill_width, bar_height))
+        # Draw border
+        pygame.draw.rect(screen, BLACK, 
+                        (x, start_y, bar_width, bar_height), 2)
+        # Draw label
         font = pygame.font.Font(None, 24)
-        text = font.render(stat_name.capitalize(), True, (255, 255, 255))
-        screen.blit(text, (120, 10 + i * bar_spacing))
-
-def display_messages(screen, messages, max_messages=5):
-    """Display game messages on screen."""
-    font = pygame.font.Font(None, 24)
-    for i, message in enumerate(messages[-max_messages:]):
-        text = font.render(message, True, (255, 255, 255))
-        screen.blit(text, (10, 500 + i * 20))
+        text = font.render(stat_name.capitalize(), True, BLACK)
+        screen.blit(text, (x, start_y + bar_height + 5))
 
 def draw_cloth(surface, pos, cleaning):
     """Draw cloth cleaning cursor."""
@@ -81,13 +89,6 @@ def draw_feed_cursor(surface, pos):
         pygame.draw.circle(surface, SEED_COLOR,
                         (pos[0] + dx, pos[1] + dy), cursor_radius)
 
-def draw_progress_bar(surface, x, y, width, height, progress, color):
-    """Draw a generic progress bar."""
-    border = pygame.Rect(x, y, width, height)
-    inner = pygame.Rect(x, y, int(width * progress), height)
-    pygame.draw.rect(surface, BLACK, border, 2)
-    pygame.draw.rect(surface, color, inner)
-
 def draw_room(surface, width, height, wall_thickness):
     """Draw the game room with floor and walls."""
     surface.fill(FLOOR_COLOR)
@@ -95,6 +96,13 @@ def draw_room(surface, width, height, wall_thickness):
     pygame.draw.rect(surface, WALL_COLOR, (0, 0, wall_thickness, height))
     pygame.draw.rect(surface, WALL_COLOR, (0, height - wall_thickness, width, wall_thickness))
     pygame.draw.rect(surface, WALL_COLOR, (width - wall_thickness, 0, wall_thickness, height))
+
+def display_messages(screen, messages, max_messages=5):
+    """Display game messages on screen."""
+    font = pygame.font.Font(None, 24)
+    for i, message in enumerate(messages[-max_messages:]):
+        text = font.render(message, True, (255, 255, 255))
+        screen.blit(text, (10, 500 + i * 20))
 
 def update_combo(last_clean_time, current_time, combo_multiplier):
     """Update cleaning combo multiplier based on timing."""
